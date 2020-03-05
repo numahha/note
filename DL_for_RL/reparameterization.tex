@@ -1,0 +1,276 @@
+\section{再パラメータ化}
+\label{sec:reparameterization}
+変分ベイズをやる時に，解析的に得られない項がありサンプル近似をする必要がある．
+雑に言うと，再パラメータ化は，変数変換を用いてサンプル近似の性能を向上する方法である．
+
+
+\subsection{復習：変分ベイズ}
+入出力データを$(\vX,\vY)$，パラメータを$\vw$とする．
+確率モデル$p(\vY|\vw,\vX)$とする．
+事前分布$p(\vw)$として，Bayes則に従って事後確率を次のように得る．
+\begin{align*}
+p(\vw|\vY,\vX)
+=
+\frac{P(\vY|\vw,\vX)P(\vw)}{P(\vY|\vX)}
+=
+\frac{P(\vY,\vw|\vX)}{P(\vY|\vX)}
+\end{align*}
+一般に，$p(\vw|\vY,\vX)$は解析的な形にはならない．
+変分ベイズでは，$q(\vw;\vxi)$を用いて$p(\vw|\vY,\vX)$を近似することを考える（$\vxi$は変分パラメータと呼ばれる）．
+近似の評価指標をKLダイバージェンスとすると，
+\begin{align*}
+\mbox{KL}\left[
+q(\vw;\vxi)||p(\vw|\vY,\vX)
+\right]
+&=
+\int
+q(\vw;\vxi)
+\frac{\ln q(\vw;\vxi)}{\ln p(\vw|\vY,\vX)} d\vw
+=
+\int
+q(\vw;\vxi)
+\left[
+\ln q(\vw;\vxi) - \ln p(\vw|\vY,\vX)
+\right]
+d\vw
+\\
+&=
+\int
+q(\vw;\vxi)
+\left[
+\ln q(\vw;\vxi) - \ln p(\vY,\vw|\vX) + \ln p(\vY|\vX)
+\right]
+d\vw
+\\
+&=
+\ln p(\vY|\vX)
+-
+\int
+q(\vw;\vxi)
+\left[
+\ln p(\vY,\vw|\vX) - \ln q(\vw;\vxi)
+\right]
+d\vw
+\\
+&=
+\ln p(\vY|\vX)
+-
+{\mathcal{L}}(\vxi)
+\end{align*}
+ここで，${\mathcal{L}}(\vxi)$は，変分下界（ELBO）として知られる量である．
+$\ln p(\vY|\vX)$は$\vxi$に依存しないことに注意すれば，
+近似指標$\mbox{KL}\left[q(\vw;\vxi)||p(\vw|\vY,\vX)\right]$を最小化する問題は，
+ELBO ${\mathcal{L}}(\vxi)$を最大化する問題と等価である．
+ELBOは，次のように変形できる．
+\begin{align*}
+{\mathcal{L}}(\vxi)
+&=
+\int
+q(\vw;\vxi)
+\left[
+\ln p(\vY,\vw|\vX) - \ln q(\vw;\vxi)
+\right]
+d\vw
+\\
+&=
+\int
+q(\vw;\vxi)
+\left[
+\ln p(\vY|\vw,\vX) + \ln p(\vw) - \ln q(\vw;\vxi)
+\right]
+d\vw
+\\
+&=
+\int
+q(\vw;\vxi)
+\left[
+\ln p(\vY|\vw,\vX)
+\right]
+d\vw
+-
+\int
+q(\vw;\vxi)
+\left[
+\ln q(\vw;\vxi) -  \ln p(\vw)
+\right]
+d\vw
+\\
+&=
+\int
+q(\vw;\vxi)
+\left[
+\ln p(\vY|\vw,\vX)
+\right]
+d\vw
+-
+\mbox{KL}\left[
+q(\vw;\vxi)||p(\vw)
+\right]
+\\
+&=
+\mathbb{E}_{\vw\sim q(\vw;\vxi)}
+\left[
+\ln p(\vY|\vw,\vX)
+\right]
+-
+\mbox{KL}\left[
+q(\vw;\vxi)||p(\vw)
+\right]
+\end{align*}
+基本的には，ELBOの最大化問題を勾配法で解いていくことになるので，上式の各項の$\vxi$に関する微分が欲しいものである．
+ここで，$\mbox{KL}\left[q(\vw;\vxi)||p(\vw)\right]$の微分は，事前分布$p(\vw)$と変分分布$q(\vw;\vxi)$を$\vw$の正規分布などで与えれば，解析的に計算することができる．
+一方で，$\mathbb{E}_{\vw\sim q(\vw;\vxi)}\left[ \ln p(\vY|\vw,\vX)\right]$の微分は解析的には計算できない．
+
+これを扱うシンプルな方法は，分布$q(\vw;\vxi)$から$\vw$のサンプルを生成してサンプル近似することであるが，実用上は高い分散を生じてしまうことが知られている．
+
+
+\subsection{reparameterization trick \cite{diederik2014auto}}
+与えられた$q(\vw;\vxi)$に対して，
+$q(\vg(\vxi;\vepsilon);\vxi)d\vxi=p(\vepsilon)d\vepsilon$を満たす変数変換$\vw=\vg(\vxi;\vepsilon)$と分布$p(\vepsilon)$を定義できる場合には，
+次が成り立つ（途中の$(\cdot)_{i,j}$は行列の成分表示，$(\cdot)_{j}$はベクトルの成分表示を指す）．
+\begin{align*}
+\frac{\partial}{\partial \vxi}
+\mathbb{E}_{\vw\sim q(\vw;\vxi)}
+\left[
+\ln p(\vY|\vw,\vX)
+\right]
+&=
+\frac{\partial}{\partial \vxi}
+\mathbb{E}_{\vepsilon\sim p(\vepsilon)}
+\left[
+\ln p(\vY|\vg(\vxi;\vepsilon),\vX)
+\right]
+\\
+&=
+\mathbb{E}_{\vepsilon\sim p(\vepsilon)}
+\left[
+\frac{\partial}{\partial \vxi}
+\ln p(\vY|\vg(\vxi;\vepsilon),\vX)
+\right]
+\\
+&=
+\mathbb{E}_{\vepsilon\sim p(\vepsilon)}
+\left[
+\left(
+%\left.
+\frac{\partial \vg(\vxi;\vepsilon)}{\partial \vxi}
+%\right|_{\vepsilon}
+ \right)
+\left(
+\left.
+\frac{\partial}{\partial \vw}
+\ln p(\vY|\vw,\vX)
+\right|_{\vw=\vg(\vxi;\vepsilon)}
+\right)
+\right]
+\\
+&=
+\mathbb{E}_{\vepsilon\sim p(\vepsilon)}
+\left[
+\left(
+%\left.
+\frac{\partial g_j(\vxi;\vepsilon)}{\partial \xi_i}
+%\right|_{\vepsilon}
+\right)_{i,j}
+\left(
+\left. \frac{\partial}{\partial w_j} \ln p(\vY|\vw,\vX) \right|_{\vw=\vg(\vxi;\vepsilon)}
+\right)_{j}
+\right]
+\end{align*}
+よって，1回のサンプル値$\tilde{\vepsilon}\sim p(\vepsilon)$によって近似すると，
+\begin{align*}
+\frac{\partial}{\partial \vxi}
+\mathbb{E}_{\vw\sim q(\vw;\vxi)}
+\left[
+\ln p(\vY|\vw,\vX)
+\right]
+&\approx
+\frac{\partial}{\partial \vxi}
+\ln p(\vY|\vg(\vxi;\tilde{\vepsilon}),\vX)
+=
+\left(
+%\left.
+\frac{\partial g_j(\vxi;\tilde{\vepsilon})}{\partial \xi_i}
+%\right|_{\vepsilon}
+\right)_{i,j}
+\left(
+\left. \frac{\partial}{\partial w_j} \ln p(\vY|\vw,\vX) \right|_{\vw=\vg(\vxi;\tilde{\vepsilon})}
+\right)_{j}
+\end{align*}
+
+
+
+\paragraph{具体例：正規分布の場合．}
+$q(w;\vxi)$として正規分布が与えられたとする（従って，$\vxi=(\mu_{\xi},\sigma_{\xi})^T$である）．
+\begin{align*}
+ q(w;\vxi)
+ =
+ \mathcal{N}(w|\mu_{\xi},\sigma^2_{\xi})
+ =
+ \frac{1}{\sqrt{2\pi\sigma^2_{\xi}}} \exp\left( -\frac{(w-\mu_{\xi})^2}{2\sigma^2_{\xi}} \right)
+\end{align*}
+ここで，変数変換$w=g(\vxi;\epsilon)$と分布$p(\epsilon)$を次のように定義する．
+\begin{align*}
+ g(\vxi;\epsilon) &= w = \mu_{\xi}+\sigma_{\xi}\epsilon
+ \\
+ p(\epsilon) &= {\mathcal{N}}(0,1) = \frac{1}{\sqrt{2\pi}} \exp\left( -\frac{\epsilon^2}{2} \right)
+\end{align*}
+$dw = \frac{dw}{d\epsilon} d\epsilon = \sigma_{\xi}d\epsilon$であるため，次が成り立つ．
+\begin{align*}
+ q(w;\vxi)dw
+ &=
+ \frac{1}{\sqrt{2\pi\sigma^2_{\xi}}} \exp\left( -\frac{((\mu_{\xi}+\sigma_{\xi}\epsilon) -\mu_{\xi})^2}{2\sigma^2_{\xi}} \right) \sigma_{\xi}d\epsilon
+ \\
+ &=
+ \frac{1}{\sqrt{2\pi}} \exp\left( -\frac{\epsilon^2}{2} \right)d\epsilon = p(\epsilon) d\epsilon
+\end{align*}
+よって，この変数変換と分布は，$q(w;\vxi)dw=p(\epsilon)d\epsilon$を満たしている．
+そのため，再パラメータ化が適用できて，
+\begin{align*}
+\frac{\partial}{\partial \vxi}
+\mathbb{E}_{w\sim q(w;\vxi)}
+\left[
+\ln p(\vY|w,\vX)
+\right]
+&=
+\mathbb{E}_{\epsilon\sim p(\epsilon)}
+\left[
+\left(
+\frac{\partial g(\vxi;\epsilon)}{\partial \xi_i}
+\right)_i
+\left(
+\left. \frac{\partial}{\partial w} \ln p(\vY|w,\vX) \right|_{w=g(\vxi;\epsilon)}
+\right)
+\right]
+\\
+&=
+\mathbb{E}_{\epsilon\sim p(\epsilon)}
+\left[
+\left(
+     \begin{array}{c}
+      \frac{\partial g(\vxi;\epsilon)}{\partial \mu_{\xi} }  \\
+      \frac{\partial g(\vxi;\epsilon)}{\partial \sigma_{\xi} }
+    \end{array}
+\right)
+\left(
+\left. \frac{\partial}{\partial w} \ln p(\vY|w,\vX) \right|_{w=g(\vxi;\epsilon)}
+\right)
+\right]
+\\
+&=
+\mathbb{E}_{\epsilon\sim p(\epsilon)}
+\left[
+\left(
+     \begin{array}{c}
+      1  \\
+      \epsilon
+    \end{array}
+\right)
+\left(
+\left. \frac{\partial}{\partial w} \ln p(\vY|w,\vX) \right|_{w=g(\vxi;\epsilon)}
+\right)
+\right]
+\end{align*}
+
+\paragraph{ノート．}
+再パラメータ化の拡張や，効率化を与えるメカニズムの解析は，現在でも研究トピックの一つである（例えば\cite{xu2019variance}）．

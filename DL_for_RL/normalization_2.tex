@@ -1,0 +1,247 @@
+\section{計算途中：正規化 (normalization)}
+\subsection{batch normalization \cite{ioffe2015batch}}
+多層NNのパラメータを更新する場合，前の層のパラメータの変化によって次の層に対する入力の分布が大きく変化してしまい，学習が不安定になりやすい．
+正規化のアイデアは，入力を標準正規（ガウス）分布を使って変換して用いることにより，学習を安定化させようというものである．
+
+$n$番目のデータの$\ell$層目の中間変数を，$\vz^{(\ell)}_n=(z^{(\ell)}_{n,1},z^{(\ell)}_{n,2},\cdots)^T$と表記する．
+ミニバッチに含まれるデータのインデックスの集合を$\mathcal{S}$とする．
+具体的には，次の変換を用いる．
+\begin{align*}
+\mu_{d}^{(\ell)} &= \frac{1}{m}\sum_{n\in\mathcal{S}}z^{(\ell)}_{n,d}
+\\
+{\sigma^2}^{(\ell)}_{d}
+&=
+\frac{1}{m} \sum_{n\in\mathcal{S}} (z^{(\ell)}_{n,d}-\mu_{d}^{(\ell)})^2
+\\
+\hat{z}^{(\ell)}_{n,d}
+&=
+\frac{z^{(\ell)}_{n,d}-\mu_{d}}
+{\sqrt{{\sigma^2}^{(\ell)}_{d}+\epsilon_c}}
+\\
+\bar{z}^{(\ell)}_{n,d}
+&=
+\gamma^{(\ell)}_d \hat{z}^{(\ell)}_{n,d} + \beta^{(\ell)}_d
+\end{align*}
+ここで，$\gamma_d$と$\beta_d$は学習可能な係数である．
+
+この操作を，次のように略記する．
+\begin{align*}
+\vmu^{(\ell)}, {\vsigma^2}^{(\ell)} &= \mbox{NormParam}(\{\vz^{(\ell)}_{n}\}_{n\in\mathcal{S}})
+\\
+\bar{\vz}^{(\ell)}_{n}
+&=
+\mbox{BN}(\vz^{(\ell)}_n,\vmu^{(\ell)}, {\vsigma^2}^{(\ell)},\vgamma^{(\ell)},\vbeta^{(\ell)})
+\end{align*}
+
+\paragraph{MLP順伝播 with バッチ正則化．}
+各層においてバッチの平均と分散をとる操作があるので，バッチ単位で層毎に順伝播を行う．
+\begin{align*}
+ \vz^{(\ell)}_n &=
+ \left\{
+     \begin{array}{ll}
+       \vx_n & \mbox{if }\ell=0 \\
+       \vphi.(\va^{(\ell)}_n) & \mbox{if }\ell \in \{1,\cdots,L-1 \}
+     \end{array}
+   \right.
+   ,~~~\mbox{for }n\in\mathcal{S}
+   \\
+\vmu^{(\ell)}, {\vsigma^2}^{(\ell)} &= \mbox{NormParam}(\{\vz^{(\ell)}_{n}\}_{n\in\mathcal{S}}),~~~\ell=0,\cdots,L-1
+\\
+\bar{\vz}^{(\ell)}_{n}
+&=
+\mbox{BN}(\vz^{(\ell)}_n,\vmu^{(\ell)}, {\vsigma^2}^{(\ell)},\vgamma^{(\ell)},\vbeta^{(\ell)}),~~~\mbox{for }n\in\mathcal{S},~~~\ell=0,\cdots,L-1
+\\
+ \va^{(\ell)}_n &= \vW^{(\ell)}\bar{\vz}^{(\ell-1)}_n,~~~\mbox{for } n\in\mathcal{S},~~~\ell=1,\cdots,L
+ \\
+ \vy_n &= \va^{(L)}_n + \vepsilon_n,~~~\mbox{for } n\in\mathcal{S}
+\end{align*}
+
+
+次に，2層逆伝播を導出する．ミニバッチに対する誤差関数を$E(\vW,\vgamma,\vbeta)= \sum_{n\in\mathcal{S}}E_n(\vW,\vgamma,\vbeta)$とすると，
+\begin{align*}
+ \frac{\partial E}{\partial w^{(2)}_{d,h_1}}
+ &=
+ \sum_{n\in\mathcal{S}}\frac{\partial E_n}{\partial a^{(2)}_{n,d}} \frac{\partial a^{(2)}_{n,d}}{\partial w^{(2)}_{d,h_1}}
+ =
+ \sum_{n\in\mathcal{S}}\frac{\partial E_n}{\partial a^{(2)}_{n,d}} \bar{z}_{n,d}^{(2)}
+ =
+ \sum_{n\in\mathcal{S}} \delta^{(2)}_{n,d} \bar{z}_{n,d}^{(2)}
+ \\
+ \frac{\partial E}{\partial w^{(1)}_{h_1,h_0}}
+ &=
+ \sum_{n\in\mathcal{S}}
+ \left\{
+ \left(
+ \sum_{d=1}^{D}
+ \frac{\partial E_n}{\partial a^{(2)}_{n,d}}
+ \frac{\partial a^{(2)}_{n,d}} {\partial \bar{z}^{(1)}_{n,h_1}}
+ \right)
+ \frac{\partial \bar{z}^{(1)}_{n,h_1}}{\partial w^{(1)}_{h_1,h_0}}
+ \right\}
+ \\
+ &=
+ \sum_{n\in\mathcal{S}}
+ \left\{
+ \left(
+ \sum_{d=1}^{D}
+ \delta^{(2)}_{n,d}
+ \frac{\partial} {\partial \bar{z}^{(1)}_{n,h_1}}
+ \left(
+ \sum_{h_1'=1}^{H_1}w^{(2)}_{d,h_1'}\bar{z}^{(1)}_{n,h_1'}
+ \right)
+ \right)
+ \frac{\partial \bar{z}^{(1)}_{n,h_1}}{\partial w^{(1)}_{h_1,h_0}}
+ \right\}
+ \\
+ &=
+ \sum_{n\in\mathcal{S}}
+ \left\{
+ \left(
+ \sum_{d=1}^{D}
+ \delta^{(2)}_{n,d}
+ w^{(2)}_{d,h_1}
+ \right)
+ \frac{\partial \bar{z}^{(1)}_{n,h_1}}{\partial w^{(1)}_{h_1,h_0}}
+ \right\}
+\end{align*}
+各項を計算していくと，
+\begin{align*}
+ \frac{\partial \bar{z}^{(1)}_{n,h_1}}{\partial w^{(1)}_{h_1,h_0}}
+ &=
+ \frac{\partial}{\partial w^{(1)}_{h_1,h_0}} (\gamma_{h_1} \hat{z}^{(1)}_{n,h_1} + \beta_{h_1})
+ =
+ \gamma_{h_1} \frac{\partial}{\partial w^{(1)}_{h_1,h_0}}
+  \left( \frac{z^{(1)}_{n,h_1}-\mu_{h_1}}
+ {\sqrt{{\sigma^2}^{(1)}_{d}+\epsilon_c}} \right)
+ \\
+ &=
+ \gamma_{h_1} \sum_{h_1'}\frac{\partial z^{(1)}_{n,h_1'}}{\partial w^{(1)}_{h_1,h_0}}
+  \frac{\partial }{\partial z^{(1)}_{n,h_1'}}
+  \left( \frac{z^{(1)}_{n,h_1}-\mu_{h_1}}
+ {\sqrt{{\sigma^2}^{(1)}_{h_1}+\epsilon_c}} \right)
+\end{align*}
+ここで，$\vz^{(1)}=\vphi.(\va^{(1)})$が要素ごとの積であることに注意すれば，
+\begin{align*}
+\frac{\partial z^{(1)}_{n,h_1'}}{\partial w^{(1)}_{h_1,h_0}}
+=
+\frac{\partial z^{(1)}_{n,h_1'}}{\partial a^{(1)}_{n,h_1'}}
+\frac{\partial a^{(1)}_{n,h_1'}}{\partial w^{(1)}_{h_1,h_0}}
+=
+\phi'(a^{(1)}_{n,h_1'})
+\frac{\partial}{\partial w^{(1)}_{h_1,h_0}}\sum_{h_0'} w^{(1)}_{h_1',h_0'}z^{(0)}_{n,h_0'}
+=\left\{
+    \begin{array}{ll}
+      \phi'(a^{(1)}_{n,h_1})z^{(0)}_{n,h_0} & \mbox{if }h_1=h_1' \\
+      0 & \mbox{if } h_1\neq h_1'
+    \end{array}
+  \right.
+\end{align*}
+これを代入すると，
+\begin{align*}
+ \frac{\partial \bar{z}^{(1)}_{n,h_1}}{\partial w^{(1)}_{h_1,h_0}}
+ =
+ \gamma_{h_1} \phi'(a^{(1)}_{n,h_1})z^{(0)}_{n,h_0}
+  \frac{\partial }{\partial z^{(1)}_{n,h_1}}
+  \left( \frac{z^{(1)}_{n,h_1}-\mu_{h_1}}
+ {\sqrt{{\sigma^2}^{(1)}_{h_1}+\epsilon_c}} \right)
+\end{align*}
+残った偏微分の項を計算すると，
+\begin{align*}
+  \frac{\partial }{\partial z^{(1)}_{n,h_1}}
+  \left( \frac{z^{(1)}_{n,h_1}-\mu_{h_1}}
+ {\sqrt{{\sigma^2}^{(1)}_{h_1}+\epsilon_c}} \right)
+ &=
+ \frac{1}
+{\sqrt{{\sigma^2}^{(1)}_{h_1}+\epsilon_c}}
+\left\{
+ \frac{\partial }{\partial z^{(1)}_{n,h_1}}(z^{(1)}_{n,h_1}-\mu_{h_1})
+ -
+ \frac{(z^{(1)}_{n,h_1}-\mu_{h_1})}{2({\sigma^2}^{(1)}_{h_1}+\epsilon_c)}\frac{\partial }{\partial z^{(1)}_{n,h_1}}({\sigma^2}^{(1)}_{h_1}+\epsilon_c)
+ \right\}
+ \\
+ &=
+ \frac{1}
+{\sqrt{{\sigma^2}^{(1)}_{h_1}+\epsilon_c}}
+\left\{
+ 1-\frac{1}{m}
+ -
+ \frac{(z^{(1)}_{n,h_1}-\mu_{h_1})}{2({\sigma^2}^{(1)}_{h_1}+\epsilon_c)}\frac{2(z^{(1)}_{n,h_1}-\mu_{h_1})(1-\frac{1}{m})}{m}
+ \right\}
+ \\
+ &=
+ \frac{1}
+{\sqrt{{\sigma^2}^{(1)}_{h_1}+\epsilon_c}}
+\left(1-\frac{1}{m}\right)
+\left\{
+ 1
+ -
+ \frac{(z^{(1)}_{n,h_1}-\mu_{h_1})^2}{m({\sigma^2}^{(1)}_{h_1}+\epsilon_c)}
+ \right\}
+\end{align*}
+最終的に，次のように書ける（合ってる？）．
+\begin{align*}
+\frac{\partial E}{\partial w^{(1)}_{h_1,h_0}}
+&=
+\sum_{n\in\mathcal{S}}
+\left\{
+\frac{\gamma_{h_1} \phi'(a^{(1)}_{n,h_1})z^{(0)}_{n,h_0}(1-\frac{1}{m})}
+{\sqrt{{\sigma^2}^{(1)}_{h_1}+\epsilon_c}}
+\left[
+1
+-
+\frac{(z^{(1)}_{n,h_1}-\mu_{h_1})^2}{m({\sigma^2}^{(1)}_{h_1}+\epsilon_c)}
+\right]
+\left(
+\sum_{d=1}^{D}
+\delta^{(2)}_{n,d}
+w^{(2)}_{d,h_1}
+\right)
+\right\}
+\end{align*}
+
+●●●TODO●●●バッチ正則化の誤差逆伝播の導出と検算法．
+
+\paragraph{論文\cite{ioffe2015batch}の導出．}
+計算チェックのために書く．
+\begin{align*}
+ \frac{\partial l}{\partial \hat{x}_i}
+ &=
+ \gamma\frac{\partial l}{\partial y_i}
+ \\
+ \frac{\partial l}{\partial \sigma^2}
+ &=
+ -\frac{1}{2}(\sigma^2+\epsilon)^{-\frac{3}{2}}\sum_{i=1}^m(x_i-\mu)\frac{\partial l}{\partial \hat{x}_i}
+ \\
+ &=
+ -\frac{\gamma}{2}(\sigma^2+\epsilon)^{-\frac{3}{2}}\sum_{i=1}^m(x_i-\mu)\frac{\partial l}{\partial y_i}
+ \\
+ \frac{\partial l}{\partial \mu}
+ &=
+ -(\sigma^2+\epsilon)^{-\frac{1}{2}}\sum_{i=1}^m\frac{\partial l}{\partial \hat{x}_i} +
+ \frac{-2\sum_{i=1}^m(x_i-\mu)}{m}\frac{\partial l}{\partial \sigma^2}
+ \\
+ &=
+ -\gamma(\sigma^2+\epsilon)^{-\frac{1}{2}}\sum_{i=1}^m\frac{\partial l}{\partial y_i}
+ \\
+ \frac{\partial l}{\partial x_i}
+ &=
+  -(\sigma^2+\epsilon)^{-\frac{1}{2}}\frac{\partial l}{\partial \hat{x}_i}
+  +\frac{2(x_i-\mu)}{m}\frac{\partial l}{\partial \sigma^2}
+  +\frac{1}{m}\frac{\partial l}{\partial \mu}
+ \\
+ &=
+ \gamma(\sigma^2+\epsilon)^{-\frac{1}{2}}
+ \left\{
+ \frac{\partial l}{\partial y_i}
+ -(\sigma^2+\epsilon)^{-1}\frac{2(x_i-\mu)}{m}\sum_{j=1}^m(x_j-\mu)\frac{\partial l}{\partial y_j}
+ -\frac{1}{m}\sum_{j=1}^m\frac{\partial l}{\partial y_j}
+ \right\}
+ \\
+ &=
+ \gamma(\sigma^2+\epsilon)^{-\frac{1}{2}}
+ \left\{
+ \frac{\partial l}{\partial y_i}
+ -\frac{2(x_i-\mu)}{m(\sigma^2+\epsilon)}\sum_{j=1}^m(x_j-\mu)\frac{\partial l}{\partial y_j}
+ -\frac{1}{m}\sum_{j=1}^m\frac{\partial l}{\partial y_j}
+ \right\}
+\end{align*}

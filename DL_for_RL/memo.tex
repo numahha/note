@@ -1,0 +1,71 @@
+\documentclass{jsarticle}
+\usepackage[dvips]{graphicx}
+\usepackage{amsmath}
+\usepackage{longtable}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{mathrsfs}
+\usepackage{comment}
+\usepackage{url}
+\input{symbol}
+\input{MAS_SIZE}
+\input{texstyle.STY}
+\renewcommand{\tablename}{Table~}
+\renewcommand{\figurename}{Fig.~}
+\bibliographystyle{plain}
+
+
+\title{（強化学習のための？）深層学習メモ}
+\author{菱沼　徹}
+\date{\today}
+\begin{document}
+\maketitle
+
+
+強化学習をやる際，深層学習についてだいたい次が分かればいいらしい\cite{SpinningUp2018}ので，それぞれメモしていく．
+\begin{itemize}
+\item architectures (MLP, vanilla RNN, LSTM, GRU, conv layers, resnets, attention mechanisms)
+\item common regularizers (weight decay, dropout)
+\item normalization (batch norm, layer norm, weight norm)
+\item optimizers (SGD, momentum SGD, Adam, others)
+\item reparameterization trick
+\end{itemize}
+
+表記の単純化のため，（できるだけ同じになるように努めるが）記号の定義は各節のみにおいて有効とする．
+
+\input{introduction}
+\clearpage
+
+\input{optimization}
+\clearpage
+
+\input{reparameterization}
+\clearpage
+
+\input{regularization}
+\clearpage
+
+\input{normalization}
+\clearpage
+
+
+\section{雑感と文献メモ}
+\begin{itemize}
+\item 各項目について，\cite{suyama2019bayesian}が和書でだいたい網羅してくれているので，まずはこれの該当箇所を読めばいいと思う．
+\item
+活性化関数は，
+ここ最近の強化学習実装（例えばSAC \cite{haarnoja2018soft}）ではほぼReLU一択なのが現状．
+ちょっと古い強化学習実装（例えばTRPO \cite{schulman2015trust}とか）だと，tanhとかも見かける（ReLU vs tanhの比較は\cite{henderson2018deep}を見ると良い）．
+強化学習に限らず，swish \cite{ramachandran2018searching}とかmish \cite{misra2019mish}とか提案されてはいるものの，実用面はReLU一択で決着がついた印象．
+\item
+アーキテクチャに関するのは，
+(1) mujocoなどで状態が関節角ならMLP，
+(2) 画像を状態とするならCNN，
+(3) 完全状態観測ではなく履歴が欲しいなら（あるいは動的な特徴量が欲しいなら）RNNやLSTM，
+を使っている印象．
+最新の強化学習でもまだ最近の深層学習アーキテクチャを使いこなしていない（あるいは手が回っていない）雰囲気なので，MLPさえ押さえておけば我々にとっては十分だと思う．
+\end{itemize}
+
+\bibliography{ref}
+
+\end{document}

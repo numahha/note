@@ -1,0 +1,278 @@
+\section{最適化 (optimization)}
+Adam \cite{kingma2015adam}の導入を目標にして，書いていく．
+説明が載っている和書は，\cite{harada2017image}が良いと思う．
+でも，英語て\cite{ruder2016overview}を読むのが一番分かりやすいと思う．
+
+
+\subsection{復習：最急勾配法}
+変数を$\vw$，評価関数（滑らかとする）を$E(\vw)$とする．
+Taylor展開により，
+\begin{align*}
+ E(\vw+\eta\vd)
+ &=
+ E(\vw) + \eta\vd^T\left.\frac{\partial}{\partial \vw}E(\vw)\right|_{\vw} + o(\eta)
+ \\
+ &=
+ E(\vw) + \eta\vd^T \nabla E(\vw) + o(\eta)
+\end{align*}
+そのため，微小な係数$\eta$の高次項を無視して，$||\vd||=1$の下で$E(\vw+\eta\vd)$を最小化する$\vd$は，次を満たす．
+\begin{align*}
+  \vd &= -\frac{1}{||\nabla E(\vw)||} \nabla E(\vw)
+\end{align*}
+最急降下法の基本的アイデアは，上式に基づき次式で$\vw$を更新していくことである．
+\begin{align*}
+  \vd^{(t)} &= -\frac{1}{||\nabla E(\vw^{(t)})||} \nabla E(\vw^{(t)})
+  =
+  -\frac{1}{||\left.\frac{\partial}{\partial \vw}E(\vw)\right|_{\vw^(t)}||} \left.\frac{\partial}{\partial \vw}E(\vw)\right|_{\vw^(t)}
+  \\
+  \vw^{(t+1)} &= \vw^{(t)} + \eta^{(t)} \vd^{(t)}
+\end{align*}
+
+最急降下法に限らず，$\eta^{(t)}$に相当する部分は学習係数やステップ幅と呼ばれ，様々な決め方が存在する．
+
+\if0
+
+\subsubsection{収束速度}
+$E(\vw)$は2階微分可能とする．
+$\eta$についての関数$\phi(\eta)=E(\vw^{(t)}+\eta\vd^{(t)})$を最小化する学習係数は，次の一次の停留条件を満たす．
+\begin{align*}
+ 0
+ &= \frac{d\phi(\eta)}{d\eta}
+ = \left(\left.\frac{\partial}{\partial \vw}E(\vw)\right|_{\vw=\vw^{(t)}+\eta\vd^{(t)}}\right)^T \frac{d}{d\eta}(\vw^{(t)}+\eta\vd^{(t)})
+ \\
+ &= \nabla E\left(\vw^{(t)}+\eta\vd^{(t)}\right)^T\vd^{(t)} = \sum_i\left[\frac{\partial}{\partial w_i} E\left(\vw^{(t)}+\eta\vd^{(t)}\right)\right]d_i^{(t)}
+ \\
+ &= \sum_i\left\{
+ \frac{\partial}{\partial w_i} E\left(\vw^{(t)}\right)
+ + \eta \sum_jd_j^{(t)}\frac{\partial}{\partial w_j}\left[ \frac{\partial}{\partial w_i} E\left(\vw^{(t)}\right) \right] + o(\eta)
+ \right\} d_i^{(t)}
+ \\
+ &=
+ \nabla E(\vw^{(t)})^T\vd^{(t)}
+ + \eta \sum_{i,j} d_i^{(t)} d_j^{(t)} \frac{\partial^2}{\partial w_i\partial w_j}E(\vw^{(t)})
+ + o(\eta)
+ \\
+ &=
+ \nabla E(\vw^{(t)})^T\vd^{(t)}
+ + \eta \vd^{(t)} [\nabla^2 E(\vw^{(t)})^T] \vd^{(t)}
+ + o(\eta)
+\end{align*}
+高次の微小量（←$\vw$で2回微分して出てくるヘッセよりも高次の項なので，2次最適化問題なら厳密にゼロである）を無視して，学習係数$\eta$は次のように得られる（この決め方は，「正確な直線探索」として知られる）．
+\begin{align*}
+ \eta^{(t)} = -\frac{\nabla E(\vw^{(t)})^T\vd^{(t)}}
+ {{\vd^{(t)}}^T\left[
+    \nabla^2E(\vw^{(t)})
+  \right]\vd^{(t)}}
+\end{align*}
+これを用いると，次のステップの評価関数は次のように得られる．
+\begin{align*}
+ E(\vw^{(t+1)})
+ &=
+ E(\vw^{(t)}+\eta^{(t)}\vd^{(t)})
+ \\
+ &= E(\vw^{(t)})
+ + \eta^{(t)}{\vd^{(t)}}^T\nabla E(\vw^{(t)})
+ + \frac{1}{2}{\eta^{(t)}}^2{\vd^{(t)}}^T[\nabla^2 E(\vw^{(t)})]\vd^{(t)}
+ + o(\eta^2)
+ \\
+ &= E(\vw^{(t)})
+ -\frac{(\nabla E(\vw^{(t)})^T\vd^{(t)})^2}
+ {{\vd^{(t)}}^T\left[
+    \nabla^2E(\vw^{(t)})
+  \right]\vd^{(t)}}
+  +\frac{1}{2}\frac{(\nabla E(\vw^{(t)})^T\vd^{(t)})^2}
+  {{\vd^{(t)}}^T\left[
+     \nabla^2E(\vw^{(t)})
+   \right]\vd^{(t)}}
+   + o(\eta^2)
+   \\
+   &= E(\vw^{(t)})
+   -\frac{(\nabla E(\vw^{(t)})^T\vd^{(t)})^2}
+   {2{\vd^{(t)}}^T\left[
+      \nabla^2E(\vw^{(t)})
+    \right]\vd^{(t)}}
+     + o(\eta^2)
+\end{align*}
+なお，高次の微小量$o(\eta^2)$は，2次最適化問題なら厳密にゼロである．
+
+最急勾配$\vd^{(t)}=-\frac{1}{||\nabla E(\vw^{(t)})||} \nabla E(\vw^{(t)})$を代入すると，次が得られる．
+\begin{align*}
+ \eta^{(t)} &= \frac{||\nabla E(\vw^{(t)})||^3}
+ {\nabla E(\vw^{(t)})^T\left[
+    \nabla^2E(\vw^{(t)})
+  \right]\nabla E(\vw^{(t)})}
+\\
+  E(\vw^{(t+1)})
+  &=E(\vw^{(t)})
+  -\frac{||\nabla E(\vw^{(t)})||^4}
+  {2\nabla E(\vw^{(t)})^T\left[
+     \nabla^2E(\vw^{(t)})
+   \right]\nabla E(\vw^{(t)})}
+    + o(\eta^2)
+\end{align*}
+
+
+\paragraph{凸2次最適化問題における収束速度．}
+評価関数が2次形式の場合，上の導出で無視した高次の微小量はそれぞれ厳密にゼロであり，この場合の収束速度を考える．
+まず，評価関数を次のようにおく．
+\begin{align*}
+ E(\vw) = \frac{1}{2}(\vw-\vw^\ast)^T\vQ(\vw-\vw^\ast)
+\end{align*}
+この時，$\nabla E_q(\vw)=\vQ(\vw-\vw^\ast)$と$[\nabla^2(\vw)]=\vQ$である．
+また，次が成り立つ．
+\begin{align*}
+ E(\vw) = \frac{1}{2}[\vQ(\vw-\vw^\ast)]^T\vQ^{-1}[\vQ(\vw-\vw^\ast)] =
+ \frac{1}{2}\nabla E(\vw)^T\vQ^{-1}\nabla E(\vw)
+\end{align*}
+これを用いて$E(\vw^{(t+1)})$の式を書き換えると，
+\begin{align*}
+  E(\vw^{(t+1)})
+  &=E(\vw^{(t)})
+  -\frac{||\nabla E(\vw^{(t)})||^4}
+  {2\nabla E(\vw^{(t)})^T\vQ\nabla E(\vw^{(t)})}
+  \frac{E(\vw^{(t)})}{\frac{1}{2}\nabla E(\vw^{(t)})^T\vQ^{-1}\nabla E(\vw^{(t)})}
+  \\
+  &=
+  \left\{
+  1-\frac{||\nabla E(\vw^{(t)})||^4}
+  {\nabla E(\vw^{(t)})^T\vQ\nabla E(\vw^{(t)})\nabla E(\vw^{(t)})^T\vQ^{-1}\nabla E(\vw^{(t)})}
+  \right\}
+  E(\vw^{(t)})
+\end{align*}
+$\vQ$の最大・最小固有値を，それぞれ，$\lambda_{\max}$と$\lambda_{\min}$とする．
+任意のベクトル$\vx$について，$\vx^T\vQ\vx \le \lambda_{\max}||\vx||^2$と$\vx^T\vQ^{-1}\vx \le \lambda_{\min}^{-1}||\vx||^2$であることに注意すれば，次が成り立つ．
+\begin{align*}
+  E(\vw^{(t+1)})
+  &\le
+  \left\{
+  1-\frac{1}
+  {\lambda_{\max}\lambda_{\min}^{-1}}
+  \right\}
+  E(\vw^{(t)})
+  =
+  \left\{
+  1-\frac{\lambda_{\min}}
+  {\lambda_{\max}}
+  \right\}
+  E(\vw^{(t)})
+\end{align*}
+つまり，$\ell_2$ノルムでの条件数で収束を（ラフに）評価できる．
+
+より精密な収束を評価すると，カントロビッチの不等式に基づいて，次が得られる（例えば\cite{kanamori2016continuous}を参照）．
+\begin{align*}
+  E(\vw^{(t+1)})
+  &\le
+  \left\{
+  \frac{\lambda_{\max} - \lambda_{\min}}
+  {\lambda_{\max}+\lambda_{\min}}
+  \right\}^2
+  E(\vw^{(t)})
+\end{align*}
+
+\fi
+
+
+
+\subsection{確率的勾配降下 (SGD)}
+$n$番目の入出力データ$(\vx_n,y)$，
+与えられたデータを，$D=\{(\vx_n,y)\}_{n=1}^N$とする．
+回帰関数$f(\vx;\vw)$，パラメータ$\vw$とする．
+fittingの誤差関数を次のように設計したとする．
+\begin{align*}
+  E_n(\vw)
+  &=\frac{1}{2}(y_n-f(\vx_2;\vw))^2
+  \\
+  E(\vw)
+  &=\sum_{n=1}^NE_n(\vw)
+\end{align*}
+やりたいことは，誤差関数を小さくするような$\vw$を見つけることである．
+しかし，データの個数$N$が大きいほど，勾配$\nabla E(\vw)$を直接得る事そのものが難しくなる．
+
+確率的勾配降下のアイデアは，
+「確率的に取り出した$M<N$となるデータの部分集合（ミニバッチと呼ばれる）に対して誤差関数を設定し，
+勾配を計算するための1回あたりの計算を減らす」というものである．
+具体的には，$\mathcal{S}$をランダムに選択された$M$個のインデックスとして，次の誤差関数を扱う．
+\begin{align*}
+  E_{\mathcal{S}}(\vw)
+  &=\frac{N}{M}\sum_{n\in M}E_n(\vw)
+\end{align*}
+この期待値は$E(\vw)$と等価である（ように$\mathcal{S}$がランダムに選ばれる）場合，元々やりたい$E(\vw)$の最適化をサンプル近似しながら解いているとラフに考えることができる．
+
+
+学習係数のスケジューリングは，次の条件の下での$\eta^{(t)}$を用いれば，確率1で$E(\vw)$の停留点に収束する．
+\begin{align*}
+  \sum_{t=1}^\infty\eta^{(t)}=\infty,~~~\sum_{t=1}^\infty[\eta^{(t)}]^2<\infty
+\end{align*}
+直感的には，
+$\sum_{t=1}^\infty\eta^{(t)}=\infty$で実行可能領域全体へ到達することを保証し，
+$\sum_{t=1}^\infty[\eta^{(t)}]^2<\infty$で推定が収束することを保証している（和書なら\cite{suzuki2015stochastic}を参照）．
+これを満たすシンプルな方法は，正定数$c$に対して$\eta^{(t)}=c/t$である．
+
+これ以降，バッチサイズが1である場合について書く．
+ステップ$t$におけるデータのインデックスを$n^t$とする．
+この時，誤差関数は$E_{n^t}(\vw)$である．
+
+
+\subsection{Momentum SGD}
+局所的に微分係数がゼロに近くなる場合（プラトー，平坦域とも）や，鞍点が存在する場合には，SGDの更新が遅くなってしまう．
+この問題の解決策の一つが慣性項の利用である．
+慣性係数$\mu\in(0,1]$として，次のような更新を扱う．
+\begin{align*}
+ m_i^{(t+1)} &= \mu m_i^{(t)} + \eta \left.\frac{\partial}{\partial w_i}E_{n^t}(\vw)\right|_{\vw^{(t)}}
+ \\
+ w_i^{(t+1)} &= w_i^{(t)} - m_i^{(t+1)}
+\end{align*}
+この方法では，微分がゼロに近い場合でも過去の勾配の方向に基づいて更新が進むため，平坦域を抜けることができる．
+また，この手法は，ランダムサンプリングに起因するパラメータ勾配の振動を平滑化する特性を持っている．
+
+
+\subsection{学習係数の調整}
+AdaGrad \cite{duchi2011adaptive}では，パラメータの要素ごとに異なる学習係数を設定する．
+\begin{align*}
+ g_i &= \left.\frac{\partial}{\partial w_i}E(\vw)\right|_{\vw^{(t)}}
+ \\
+ v_i^{(t+1)} &= v_i^{(t)} + g_i^2
+ \\
+ w_i^{(t+1)} &= w_i^{(t)}-\frac{\eta}{\sqrt{v_i^{(t+1)}+\epsilon_c}} g_i
+\end{align*}
+ここで，$\epsilon_c$はゼロ除算を防ぐための小さな定数である．
+
+直感的な説明としては，大きな勾配を用いたパラメータ更新が続けば学習係数は早くなり，逆に小さな勾配を用いた更新が続けば現状の学習係数を維持してパラメータを更新する．
+（和書なら\cite{harada2017image,suzuki2015stochastic}を参照）．
+
+理論は（私には）難しいので省略（COLTで発表→JMLRで完成版を発表という激強研究です）．
+
+
+\subsection{Adam}
+天下り的に書くと，Adamアルゴリズムは以下である．
+\begin{align*}
+ g_i &= \left.\frac{\partial}{\partial w_i}E(\vw)\right|_{\vw^{(t)}}
+ \\
+ m_i^{(t+1)} &= \beta_1m_i^{(t)} + (1-\beta_1)g_i
+ \\
+ v_i^{(t+1)} &= \beta_2v_i^{(t)} + (1-\beta_2)g_i^2
+ \\
+ \hat{m}_i^{(t+1)} &= \frac{1}{1-\beta_1^{m+1}}m_i^{(t+1)}
+ \\
+ \hat{v}_i^{(t+1)} &= \frac{1}{1-\beta_2^{m+1}}v_i^{(t+1)}
+ \\
+ w_i^{(t+1)} &= w_i^{(t)}-\frac{\eta}{\sqrt{\hat{v}_i^{(t+1)}+\epsilon_c}}\hat{m}_i^{(t+1)}
+\end{align*}
+
+Adamは，いくつかの勾配法のアイデアを組み合わせたものになっている．
+\begin{itemize}
+\item 慣性項の利用：$\beta_1m_i^{(t)} + (1-\beta_1)g_i$の部分．
+\item 学習係数のスケジューリング：$\frac{\eta}{\sqrt{\hat{v}_i^{(t+1)}+\epsilon_c}}\hat{m}_i^{(t+1)}$の部分．
+\item 主に初期段階において大きくなるバイアスの修正：$\frac{1}{1-\beta^{m+1}}$の部分．
+\end{itemize}
+これ以上の説明は，\cite{ruder2016overview}などを参照すること．
+
+
+\paragraph{ノート．}
+最近，オリジナル版の収束性に関する問題（そもそも非凸で確率的最適化やっているので何であれ難しい）が提起され\cite{reddi2018convergence}，
+理論考察とそれに基づく変種が提案されたりしている（AdaBound \cite{luo2018adaptive}など）が，
+実用面・理論面の両方でadamをちゃんと超えた（と皆が納得できた）ものはまだ無い（という雰囲気がある）．
+
+
+最近の強化学習実装（ICLR 2020に通った研究）を眺めていると，Adam（あるいはそれより前のRMSPropなど）を使っていれば今のところ文句は言われない
+（まあ，既存手法との比較をやる都合上，特に議論の対象にしたくない部分は既存手法の実験設定に合わせているだけなんだろうけど）．

@@ -1,0 +1,43 @@
+\section{正規化 (normalization)}
+\subsection{batch normalization \cite{ioffe2015batch}}
+多層NNのパラメータを更新する場合，前の層のパラメータの変化によって次の層に対する入力の分布が大きく変化してしまい，学習が不安定になりやすい．
+正規化のアイデアは，入力を標準正規（ガウス）分布を使って変換して用いることにより，学習を安定化させようというものである．
+
+$n$番目のデータの$\ell$層目の中間変数を，$\vz^{(\ell)}_n=(z^{(\ell)}_{n,1},z^{(\ell)}_{n,2},\cdots)^T$と表記する．
+ミニバッチに含まれるデータのインデックスの集合を$\mathcal{S}$とする．
+具体的には，次の変換を用いる．
+\begin{align*}
+\mu_{d}^{(\ell)} &= \frac{1}{m}\sum_{n\in\mathcal{S}}z^{(\ell)}_{n,d}
+\\
+{\sigma^2}^{(\ell)}_{d}
+&=
+\frac{1}{m} \sum_{n\in\mathcal{S}} (z^{(\ell)}_{n,d}-\mu_{d}^{(\ell)})^2
+\\
+\hat{z}^{(\ell)}_{n,d}
+&=
+\frac{z^{(\ell)}_{n,d}-\mu_{d}}
+{\sqrt{{\sigma^2}^{(\ell)}_{d}+\epsilon_c}}
+\\
+\bar{z}^{(\ell)}_{n,d}
+&=
+\gamma^{(\ell)}_d \hat{z}^{(\ell)}_{n,d} + \beta^{(\ell)}_d
+\end{align*}
+ここで，$\gamma_d$と$\beta_d$は学習可能な係数である．
+
+
+\paragraph{ノート．}
+バッチ正則化が収束と汎化を改善する事，つまり学習安定化／効率化とoverfitting低減化をしている事は，多くの研究において経験的には得られている（だからみんな使っている）．
+また，理解の試みもなされている\cite{luo2019towards}．
+強化学習でも，汎化性能を改善するみたいな話（要検討）がある\cite{cobbe2019quantifying}．
+
+
+
+\subsection{layer normalization \cite{ba2016layer}}
+別の空間で正規化する．
+\cite{bhatt2019crossnorm}（ICLR 2020で興味深いと言われつつ検証不足でrejectされたもの）を見てると，
+強化学習において効率的になるかは微妙な感じ？
+
+
+\subsection{weight normalization \cite{salimans2016weight,luo2019towards}}
+別の空間で正規化する．
+いくつかの強化学習実装（例えば\cite{clavera2018model,huang2019learning}）でも見かける．

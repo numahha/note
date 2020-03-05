@@ -1,0 +1,263 @@
+\section{正則化 (regularization)}
+\subsection{weight decay}
+要するにL2正則化であり，NNの分野ではこれをweight decayとも呼んでいる．
+過剰適合を防ぐ目的で，$\vw$の大きさに対してペナルティを置いてパラメータを最適化する．
+L2正則化では，2次のペナルティ項を用いる．
+\begin{align*}
+J(\vw) = E(\vw) + \frac{\lambda}{2}\vw^T\vw
+\end{align*}
+これは，事前分布を$\vw\sim\mathcal{N}(\vw|\0,\lambda^{-1}\vI)$とするMAP推定としても解釈できる（後述）．
+
+
+
+\paragraph{MAP推定．}
+次の回帰モデルを考える．
+\begin{align*}
+ y = f(\vx;\vw) + \epsilon
+\end{align*}
+ここで，$\epsilon\sim\mathcal{N}(\epsilon|0,\sigma^2)$とする．
+$y$の確率分布は，次のように得られる．
+\begin{align*}
+ p(y|\vx,\vw) &= \frac{1}{\sqrt{2\pi\sigma^2}}\exp\left( -\frac{(y-f(\vx;\vw))^2}{2\sigma^2} \right)
+ \\
+ \ln p(y|\vx,\vw) &= -\frac{(y-f(\vx;\vw))^2}{2\sigma^2} - \frac{1}{2}\ln (2\pi\sigma^2)
+\end{align*}
+したがって，対数尤度関数は次のように得られる．
+\begin{align*}
+ \ln p(\vy|\vX,\vw) &= -\frac{1}{2\sigma^2}\sum_{n=1}^N(y_n-f(\vx_n;\vw))^2 - \frac{N}{2}\ln (2\pi\sigma^2)
+\end{align*}
+また，対数事前分布は次のように得られる．
+\begin{align*}
+ \ln p(\vw) &= -\frac{\lambda}{2}\vw^T\vw - \frac{D}{2}\ln (2\pi\lambda^{-1})
+\end{align*}
+ここで，$D$はパラメータ$\vw$の次元である．
+事後確率最大化は，次のように書くことができる．
+\begin{align*}
+ \vw_{MAP}
+ &= \arg\max_{\vw} p(\vw|\vy,\vX)
+ \\
+ &= \arg\max_{\vw} \left[\ln p(\vy|\vX,\vw) + \ln p(\vw)\right]
+ \\
+ &= \arg\max_{\vw}\left[-\frac{1}{2\sigma^2}\sum_{n=1}^N(y_n-f(\vx_n;\vw))^2 -\frac{\lambda}{2}\vw^T\vw\right]
+ \\
+ &= \arg\min_{\vw}\left[\frac{1}{2\sigma^2}\sum_{n=1}^N(y_n-f(\vx_n;\vw))^2 +\frac{\lambda}{2}\vw^T\vw\right]
+\end{align*}
+そのため，
+誤差関数$\frac{1}{2\sigma^2}\sum_{n=1}^N(y_n-f(\vx_n;\vw))^2$と，
+ペナルティ$\frac{\lambda}{2}\vw^T\vw$とした最適化問題と等価である．
+
+
+
+\subsection{dropout}
+\subsubsection{実装}
+\paragraph{MLP順伝播（再掲）．}
+\begin{align*}
+ \vz^{(\ell)}_n &=
+ \left\{
+     \begin{array}{ll}
+       \vx_n & \mbox{if }\ell=0 \\
+       \vphi.(\va^{(\ell)}_n) & \mbox{if }\ell \in \{1,\cdots,L-1 \}
+     \end{array}
+   \right.
+   \\
+ \va^{(\ell)}_n &= \vW^{(\ell)}\vz^{(\ell-1)}_n,~~~\ell=1,\cdots,L
+ \\
+ \vy_n &= \va^{(L)}_n + \vepsilon_n
+\end{align*}
+
+dropoutでは，入力$\vx_n=\vz_n^{(0)}$と中間層$\vz_n^{(\ell)}$に対してランダムにゼロを与えるような操作を行う．
+中間層の要素$z_{n,i}^{(\ell)}$にゼロを与えるかどうかを示すマスクを$m_i^{(\ell)}\in\{0,1\}$とし，ベルヌーイ分布に従って得る．
+$m_i^{(\ell)}$のベクトルを$\vm^{(\ell)}$とする．
+$\vm^{(\ell)}$の成分が対角項に並んだ対角行列を，$[\mbox{diag}\{\vm^{(\ell)}\}]$とする．
+この時，dropoutを用いたNN順伝播は次のように書ける．
+
+
+\paragraph{MLP順伝播 with dropout．}
+\begin{align*}
+ \vz^{(\ell)}_n &=
+ \left\{
+     \begin{array}{ll}
+       \vx_n & \mbox{if }\ell=0 \\
+       \vphi.(\va^{(\ell)}_n) & \mbox{if }\ell \in \{1,\cdots,L-1 \}
+     \end{array}
+   \right.
+   \\
+\tilde{\vz}^{(\ell)}_n &= [\mbox{diag}\{\vm^{(\ell)}\}]\vz^{(\ell)}_n,~~~\ell=1,\cdots,L
+\\
+ \va^{(\ell)}_n &= \vW^{(\ell)}\tilde{\vz}^{(\ell-1)}_n,~~~\ell=1,\cdots,L
+ \\
+ \vy_n &= \va^{(L)}_n + \vepsilon_n
+\end{align*}
+
+
+逆伝播も，$\vz_n^{\ell}$を$\tilde{\vz}_n^{\ell}$で置き換えて導出する．
+2層NNの場合は，\ref{subsec:2layerNN}節の導出の途中から書いていくと，次のようになる．
+\begin{align*}
+\frac{\partial E_n(\vW)}{\partial w^{(1)}_{h_1,h_0}}
+&=
+\left\{
+\sum_{d=1}^D\delta^{(2)}_{n,d}
+\left[ w^{(2)}_{d,h_1} \frac{\partial \tilde{z}^{(1)}_{n,h_1}}{\partial a^{(1)}_{n,h_1}} \right]
+\right\}
+\left[\tilde{z}^{(0)}_{n,h_0}\right]
+=
+\left\{
+\sum_{d=1}^D\delta^{(2)}_{n,d}
+\left[ w^{(2)}_{d,h_1} m_{h_1}^{(1)}\frac{\partial z^{(1)}_{n,h_1} } {\partial a^{(1)}_{n,h_1}} \right]
+\right\}
+\left[m_{h_0}^{(0)}z^{(0)}_{n,h_0}\right]
+\\
+&=
+\left\{
+\sum_{d=1}^D\delta^{(2)}_{n,d}
+\left[ w^{(2)}_{d,h_1} m_{h_1}^{(1)} \phi'(a^{(1)}_{n,h_\ell}) \right]
+\right\}
+\left[m_{h_0}^{(0)}z^{(0)}_{n,h_0}\right]
+=
+\left\{
+m_{h_1}^{(1)} \phi'(a^{(1)}_{n,h_\ell})
+\sum_{d=1}^D\delta^{(2)}_{n,d}
+\left[ w^{(2)}_{d,h_1} \right]
+\right\}
+\left[m_{h_0}^{(0)}z^{(0)}_{n,h_0}\right]
+\end{align*}
+同様にして，逆伝播は次のように書ける．
+\paragraph{MLP逆伝播（再掲）．}
+\begin{align*}
+ \frac{\partial E_n(\vW)}{\partial w^{(L)}_{d,h_1}}
+ &=
+ \left[ \frac{\partial E_n(\vW)}{\partial a^{(L)}_{n,d}} \right] \left[ z^{(L-1)}_{n,h_{L-1}}\right]
+=\delta^{(L)}_{n,d}z^{(L-1)}_{n,h_{L-1}}
+\\
+\frac{\partial E_n(\vW)}{\partial w^{(\ell)}_{h_\ell,h_{\ell-1}}}
+&=
+\left[
+\phi'(a^{(\ell)}_{n,h_\ell}) \sum_{h_{\ell+1}=1}^{H_{\ell+1}}\delta^{(\ell+1)}_{n,h_{\ell+1}} w^{(\ell+1)}_{h_{\ell+1},h_\ell}
+\right]
+\left[z^{(\ell-1)}_{n,h_{\ell-1}}\right]
+=
+\delta^{(\ell)}_{n,h_\ell}
+z^{(\ell-1)}_{n,h_{\ell-1}}
+,~~~\ell=1,\cdots,L-1
+\end{align*}
+
+\paragraph{MLP逆伝播 with dropout．}
+\begin{align*}
+ \frac{\partial E_n(\vW)}{\partial w^{(L)}_{d,h_1}}
+ &=
+ \left[ \frac{\partial E_n(\vW)}{\partial a^{(L)}_{n,d}} \right] \left[ m^{(L-1)}_{h_{L-1}} z^{(L-1)}_{n,h_{L-1}}\right]
+=m^{(L-1)}_{h_{L-1}} \times \delta^{(L)}_{n,d}z^{(L-1)}_{n,h_{L-1}}
+\\
+\frac{\partial E_n(\vW)}{\partial w^{(\ell)}_{h_\ell,h_{\ell-1}}}
+&=
+\left[
+m^{(\ell)}_{h_{\ell}} \phi'(a^{(\ell)}_{n,h_\ell}) \sum_{h_{\ell+1}=1}^{H_{\ell+1}}\delta^{(\ell+1)}_{n,h_{\ell+1}} w^{(\ell+1)}_{h_{\ell+1},h_\ell}
+\right]
+\left[m^{(\ell-1)}_{h_{\ell-1}} z^{(\ell-1)}_{n,h_{\ell-1}}\right]
+=
+m^{(\ell)}_{h_{\ell}}m^{(\ell-1)}_{h_{\ell-1}}\times
+\delta^{(\ell)}_{n,h_\ell}
+z^{(\ell-1)}_{n,h_{\ell-1}}
+,~~~\ell=1,\cdots,L-1
+\end{align*}
+
+
+\paragraph{勾配 with dropout (and 正則化)．}
+dropout付き順伝播における$\va^{(\ell)}_n$を求める式は，次のようにも書ける．
+\begin{align*}
+ \va^{(\ell)}_n
+ &= \vW^{(\ell)}[\mbox{diag}\{\vm^{(\ell)}\}]\vz^{(\ell-1)}_n
+ = \tilde{\vW}^{(\ell)}\vz^{(\ell-1)}_n,~~~\ell=1,\cdots,L
+\end{align*}
+$\tilde{\vW}^{(\ell)}$の集合を$\tilde{\vW}$とする．
+$\vW$と$\vm$から$\tilde{\vW}$を得る操作を，$\tilde{\vW}=\vg(\vW,\vm)$と表す（具体的には，各層$\ell$で$\tilde{\vW}^{(\ell)}=\vW^{(\ell)}[\mbox{diag}\{\vm^{(\ell)}\}]$をする）．
+$\va^{(L)}_n=\vf(\vx_n;\tilde{\vW})=\vf(\vx_n;\vg(\vW,\vm))$と表記すると，回帰モデルは次のように書ける．
+\begin{align*}
+\vy_n=\vf(\vx_n;\vg(\vW,\vm))+\vepsilon_n
+\end{align*}
+ノイズ項の分布を正規分布$\vepsilon_n\sim\mathcal{N}(\vepsilon_n|\0,\sigma^2\vI)$で仮定すると，対数尤度関数は
+\begin{align*}
+\ln p(\vy_n|\vf(\vx_n;\vg(\vW,\vm))) &= -\frac{1}{2\sigma^2}(\vy_{n}-\vf(\vx_n;\vg(\vW,\vm)))^T(\vy_{n}-\vf(\vx_n;\vg(\vW,\vm))) - \frac{1}{2}\ln(2\pi\sigma^2)
+\end{align*}
+ミニバッチのデータ数を$M$，インデックス集合を$\mathcal{S}$とする．
+評価関数（最小化したい）を，二乗誤差プラス正則化項とする．
+\begin{align*}
+J(\vW)
+&= \frac{1}{2M}\sum_{n\in\mathcal{S}}(\vy_{n}-\vf(\vx_n;\vg(\vW,\vm)))^T(\vy_{n}-\vf(\vx_n;\vg(\vW,\vm))) + \frac{1}{2}\sum_{\ell=1}^{L}\lambda_{\ell}||\vW^{(\ell)}||
+\\
+&= -\left\{ \sigma^2\sum_{n\in\mathcal{S}}\ln p(\vy_n|\vf(\vx_n;\vg(\vW,\vm))) - \frac{1}{2}\sum_{\ell=1}^{L}\lambda_{\ell}||\vW^{(\ell)}|| \right\} + \mbox{const.}
+\end{align*}
+勾配を取ると，
+\begin{align*}
+\nabla_{\vW} J(\vW)
+= -\left\{ \sigma^2\sum_{n\in\mathcal{S}} \nabla_{\vW}\ln p(\vy_n|\vf(\vx_n;\vg(\vW,\vm))) - \frac{1}{2}\sum_{\ell=1}^{L}\lambda_{\ell}\nabla_{\vW}||\vW^{(\ell)}|| \right\}
+\end{align*}
+なお，マスク$\vm$は確率的に得られていることに注意する．
+
+\subsubsection{変分ベイズとしての解釈\cite{gal2016dropout}}
+\paragraph{勾配 with dropoutの記号の書き換え．}
+前小節で導出した勾配の記号を，$\vW\to\vxi$と$\vm\to\tilde{\vepsilon}$とと書き替える．
+\begin{align}
+\nabla_{\vxi} J(\vxi)
+= -\left\{ \sigma^2\sum_{n\in\mathcal{S}} \nabla_{\vxi}\ln p(\vy_n|\vf(\vx_n;\vg(\vxi,\tilde{\vepsilon}))) - \frac{1}{2}\sum_{\ell=1}^{L}\lambda_{\ell}\nabla_{\vxi}||\vxi^{(\ell)}|| \right\}
+\label{eq:dropout_grad}
+\end{align}
+
+
+\paragraph{変分ベイズwith再パラメータ化勾配（\ref{sec:reparameterization}節の導出をまとめると得られる）．}
+\begin{align*}
+\nabla_{\vxi}{\mathcal{L}}(\vxi)
+&=
+\nabla_{\vxi}
+\mathbb{E}_{\vw\sim q(\vw;\vxi)}
+\left[
+\ln p(\vY|\vw,\vX)
+\right]
+-
+\nabla_{\vxi}
+\mbox{KL}\left[
+q(\vw;\vxi)||p(\vw)
+\right]
+\\
+&\approx
+\nabla_{\vxi}
+\ln p(\vY|\vg(\vxi;\tilde{\vepsilon}),\vX)
+-
+\nabla_{\vxi}
+\mbox{KL}\left[
+q(\vw;\vxi)||p(\vw)
+\right]
+\end{align*}
+ここで，$\vw=\vg(\vxi;\vepsilon)$と$p(\vepsilon)$は再パラメータ化の条件を満たしていて，また$\tilde{\vepsilon}$は$p(\vepsilon)$から得られたサンプルである．
+尤度関数を$p(\vY|\vw,\vX)=\prod_{n\in\mathcal{S}}p(\vy_n|\vf(\vx_n;\vw))$と書くと，
+\begin{align}
+\nabla_{\vxi}{\mathcal{L}}(\vxi)
+&\approx
+\sum_{n\in\mathcal{S}}
+\nabla_{\vxi}
+\ln p(\vy|\vf(\vx_n;\vg(\vxi;\tilde{\vepsilon})))
+-
+\nabla_{\vxi}
+\mbox{KL}\left[
+q(\vw;\vxi)||p(\vw)
+\right]
+\label{eq:repara_grad}
+\end{align}
+
+\paragraph{比較．}
+定数倍を無視して式(\ref{eq:dropout_grad})と(\ref{eq:repara_grad})を見比べると，第1項についてはそれぞれ同じ形で表現できる．
+そのため，式(\ref{eq:dropout_grad})の第2項（正則化項の勾配←データに依存しない）と，
+式(\ref{eq:repara_grad})の第2項（事前分布・変分分布間のKLダイバージェンス←データに依存しない）を同じ形で表現できるなら，
+dropoutは変分ベイズの枠組みの枠組みで解釈できる．
+これは，特定の$q(\vw;\vxi)$と$p(\vw)$を選ぶことにより成立させることができる（条件は\cite{gal2016dropout}とその関連研究を参照）．
+
+これらをまとめると，
+\begin{itemize}
+\item dropoutにおけるパラメータ$\vW$は，変分ベイズにおけるハイパパラメータ$\vxi$に相当する．
+\item dropoutにおけるマスク$\vm$のサンプリングは，再パラメータ化における$\vepsilon$のサンプリングに相当する．
+\item dropoutの背後には，暗に確率変数（式(\ref{eq:repara_grad})における$\vw$相当）が存在しているが，周辺化されているので表には出てこない．
+\end{itemize}
+
+一般に，確率変数の周辺化は，確率変数の点推定と比較してoverfittingに対してロバストである（その代償に計算量をより多く必要とする）と理解される
+（例：NNにおける重みパラメータの点推定よりも，Bayesian NNにおける重みパラメータの周辺化の方がロバストである）．
+上述の議論より，dropoutはある種の周辺化を暗にやっていると解釈することができて，それがdropoutにおいて経験的に得られているロバスト性の理由だと考えられている．
