@@ -1,0 +1,201 @@
+\section{TRPO: Trust Region Policy Optimization \cite{schulman2015trust}}
+
+\subsection{準備}
+初期状態$s_0$は，分布$\rho_0$からサンプルされる．
+軌道$(s_0,a_0,s_1,a_1,\cdots)$は，終端状態にたどり着くまで，方策$a_t\sim \pi(\cdot|s_t)$に従って行動をサンプリングし，またダイナミクス$s_{t+1}\sim P(s_{t+1}|s_t,a_t)$に従って状態をサンプリングすることにより生成される．
+報酬$r(s_t)$を，各時間ステップにおいて受け取る．
+割引率を$\gamma\in(0,1)$とする．
+確率的定常方策$\pi$で表し，$a_t\sim\pi(a_t|s_t)$とする．
+期待割引報酬$\eta(\pi)$を次のように定義する．
+\begin{align*}
+  \eta(\pi) = \mathbb{E}_{s_0,a_0,\cdots\sim\pi}\left[\sum_{t=0}^{\infty}\gamma^t r(s_t)\right]
+\end{align*}
+状態行動価値関数$Q_\pi$，価値関数$V_\pi$，アドバンテージ関数$A_\pi$を次のように定義する．
+\begin{align*}
+  Q_{\pi}(s_t,a_t) &= \mathbb{E}_{s_{t+1},a_{t+1},\cdots\sim\pi}\left[\sum_{\ell=0}^{\infty}\gamma^\ell r(s_{t+\ell})\right]
+  \\
+  V_{\pi}(s_t) &= \mathbb{E}_{a_t,s_{t+1},\cdots\sim\pi}\left[\sum_{\ell=0}^{\infty}\gamma^\ell r(s_{t+\ell})\right]
+  \\
+  A_{\pi}(s,a) &= Q_{\pi}(s,a) - V_{\pi}(s)
+\end{align*}
+他の方策$\tilde{\pi}$の期待リターンは，次のように書ける（\cite{schulman2015trust}付録に導出あり）．
+\begin{align*}
+  \eta(\tilde{\pi}) = \eta(\pi) + \mathbb{E}_{s_0,a_0,\cdots\sim\tilde{\pi}}\left[\sum_{t=0}^{\infty}\gamma^t A_{\pi}(s_t,a_t)\right]
+\end{align*}
+ここで，$\mathbb{E}_{s_0,a_0,\cdots\sim\tilde{\pi}}[\cdot]$は，$a_t\sim\tilde{\pi}(\cdot|s_t)$を意味する．
+$\rho_{\pi}$を，（規格化していない）割引訪問頻度とする．
+\begin{align*}
+  \rho_\pi(s) = \sum_{t=0}^\infty \gamma^t P(s_t=s)
+\end{align*}
+これを用いて，次のように書ける．
+\begin{align}
+  \eta(\tilde{\pi}) = \eta(\pi) + \sum_s\rho_{\tilde{\pi}}(s)\sum_a \tilde{\pi}(a|s)A_{\pi}(s,a)
+  \label{eq:trpo_eq2}
+\end{align}
+もし全ての$s$に対して$A_{\pi}(s,a)\ge0$となるなら，方策は必ず改善される（確定的方策で方策反復をやることを言っている）．
+しかしながら，近似設定では，推定と近似誤差のせいで，ある状態$s$に対するアドバンテージ関数が負になることが避けられない．
+
+式(\ref{eq:trpo_eq2})中において，$\rho$が$\tilde{\pi}$に依存しているため，これを直接的に最適化することが難しい．
+その代わりに，この論文では次の近似を用いる．
+\begin{align}
+  L_\pi(\tilde{\pi}) = \eta(\pi) + \sum_s\rho_\pi(s)\sum_a \tilde{\pi}(a|s)A_{\pi}(s,a)
+  \label{eq:trpo_eq2}
+\end{align}
+この式は，$\rho$に関して方策の変化を無視していることに注意する．
+もしパラメトライズされた方策$\pi_\theta(a|s)$を用いるなら，$L_\pi$と$\eta$は一次まで一致する（つまり次式が成り立つ）．
+\begin{align*}
+  L_{\pi_{\theta_0}}(\pi_{\theta})|_{\theta=\theta_0} = \eta(\pi_{\theta})|_{\theta=\theta_0},~~~
+  [\nabla_\theta L_{pi_{\theta}}(\pi_{\theta})]_{\theta=\theta_0} = [\nabla_\theta \eta(\pi_{\theta})]_{\theta=\theta_0}
+\end{align*}
+この式は，もし十分小さいステップ幅で$L_{\pi_{\theta_{old}}}$を改善すれば，$\eta$も改善されるだろう，ということを意味している．
+
+
+この問題を扱うために，Kakade and Langfordは，$\eta$の改善のlower boundを与えた．
+$\pi_{old}$を現在の方策とし，また$\pi'=\arg\max_\pi L_{\pi_{old}}(\pi')$とする．
+そして，新しい方策を
+\begin{align}
+  \pi_{new}(a|s) = (1-\alpha)\pi_{old}(a|s)+\alpha\pi'(a|s)
+  \label{eq:trpo_eq5}
+\end{align}
+とする．
+Kakade and Langfordは，以下のlower boundを導いた．
+\begin{align}
+  \eta(\pi_{new}) \ge L_{\pi_{old}}(\pi_{new}) - \frac{2\epsilon\gamma}{(1-\gamma)^2}\alpha^2,~~~\epsilon = \max_s|\mathbb{E}_{a\sim\pi'(a|s)}[A_\pi(s,a)]|
+  \label{eq:trpo_eq6}
+\end{align}
+（この論文では少しだけ弱いがよりシンプルな形に修正した）
+しかしながら，このboundは，式(\ref{eq:trpo_eq5})により生成される混合方策にしか適用することができない．
+
+
+
+\subsection{一般の確率的方策に対する単調改善保証}
+この論文の理論的結果は，$\pi$と$\tilde{\pi}$の間の距離測度で式(\ref{eq:trpo_eq6})中の$\alpha$を置き換え，定数$\epsilon$を任意に変化させることである．
+この論文で特に陥る距離測度は，total variation divergenceであり，離散確率分布$p,q$に対しては$D_{TV}(p||q)=\frac{1}{2}\sum_i|p_i-q_i|$である．
+$D_{TV}^{\max}(\pi,\tilde{\pi})$を次のように定義する．
+\begin{align}
+D_{TV}^{\max}(\pi,\tilde{\pi}) = \max_s D_{TV}(\pi(\cdot|s)||\tilde{\pi}(\cdot|s))
+\label{eq:trpo_eq7}
+\end{align}
+
+\paragraph{定理１．}
+次のboundが成り立つ．
+\begin{align}
+  \eta(\pi_{new}) \ge L_{\pi_{old}}(\pi_{new}) - C\left[D_{TV}^{\max}(\pi_{old},\pi_{new})\right]^2,~~~\frac{4\gamma\max_s|\mathbb{E}_{a\sim\pi'(a|s)}[A_\pi(s,a)]|}{(1-\gamma)^2}
+  \label{eq:trpo_eq8}
+\end{align}
+証明は付録にある．
+
+total variance divergenceとKL divergenceの間の関係として，$D_{TV}(p||q)^2\le D_{KL}(p||q)$が成り立つことに注意する．
+定理1より，以下のboundが成り立つ．
+\begin{align}
+  \eta(\pi_{new}) \ge L_{\pi_{old}}(\pi_{new}) - C D_{TV}^{\max}(\pi_{old},\pi_{new})
+  \label{eq:trpo_eq9}
+\end{align}
+なお，$\pi_{new}=\pi_{old}$のときには等式が成り立つ．
+
+
+$i$番目の方策改善ステップにおいて，評価関数$M_i(\pi)=L_{\pi_i}(\pi) - C D_{TV}^{\max}(\pi_i,\pi)$を最大化するように$\pi_{i+1}$を選ぶとする．
+このとき，$\eta(\pi_{i+1})-\eta(\pi_i)\ge M_i(\pi_{i+1})-M_i(\pi_i)\ge0$であることから，$i$番目の方策改善ステップでは$\eta$は減少しない．
+
+
+\subsection{パラメトライズされた方策の最適化}
+簡単のため，$\eta(\theta)=\eta(\pi_\theta)$，$\L_\theta(\tilde{\theta})=L_{\pi_\theta}(\tilde{\pi}_\theta)$，$D_{KL}(\theta||\tilde{\theta})=D_{KL}(\pi_\theta||\tilde{\pi}_\theta)$の表記を用いる．
+次の最大化をすることにより，真の目的$\eta$の改善を保証することができる．
+\begin{align*}
+  \max_\theta[L_{\theta_{old}}]-CD_{KL}^{\max}(\theta_{old},\theta)
+\end{align*}
+もし上述の理論により推薦される定数$C$を用いるなら，実際にはステップサイズは非常に小さくなる．
+より大きなステップをロバストに取る一つの方法は，新しい方策と古い方策の間のKLダイバージェンスの拘束を用いることである．
+\begin{align}
+  \begin{array}{ll}
+    \min_{\theta} & L_{\theta_{old}}(\theta)\\
+    s.t. & D_{KL}^{\max}(\theta_{old},\theta)\le\delta
+  \end{array}
+  \label{eq:trpo_theory}
+\end{align}
+この問題は，状態空間の全ての点においてboundedなKL divergenceを要求する．
+これは理論に動機づけられるが，この問題は拘束の数の多さのせいで解くには実際的ではない．
+その代わりに，平均KL divergenceを考えるヒューリスティック近似を用いる．
+\begin{align*}
+    \bar{D}_{KL}^{\rho}(\theta_{1},\theta_2) = \mathbb{E}_{s\sim \rho}\left[D_{KL}(\pi(\cdot|s)||\tilde{\pi}(\cdot|s))\right]
+\end{align*}
+結局，次の問題を解く．
+\begin{align}
+  \begin{array}{ll}
+    \min_{\theta} & L_{\theta_{old}}(\theta)\\
+    s.t. & \bar{D}_{KL}^{\rho\theta_{old}}(\theta_{old},\theta)\le\delta
+  \end{array}
+  \label{eq:trpo}
+\end{align}
+同様の方策更新は先行研究において提案されている．
+この論文の7,8節において，この論文のアプローチと先行研究を比較する．
+
+
+\subsection{目的関数と拘束のサンプルベース推定}
+問題(\ref{eq:trpo})を期待値により書き表すと，次のようになる（アドバンテージ関数をQ値で置き換えるが，定数の変化なので解には影響しない）．
+\begin{align}
+  \begin{array}{ll}
+    \min_{\theta} & \mathbb{E}_{s\sim\rho\theta_{old},a\sim q}\left[ \frac{\pi_\theta(a|s)}{q(a|s)}Q_{\theta_{old}}(s_n,a)\right]\\
+    s.t. & \mathbb{E}_{s\sim\rho\theta_{ald}}[D_{KL}(\theta_{old},\theta)]\le\delta
+  \end{array}
+  \label{eq:trpo_expectation}
+\end{align}
+
+\subsection{注意}
+\cite{schulman2015trust}の付録Cで次のように言っている．
+
+This section describes how to efficiently approximately solve the following constrained optimization problem, which we
+must solve at each iteration of TRPO:
+\begin{align*}
+\max L(\theta) \mbox{ s.t. } \bar{D}_{KL}(\theta_old,\theta) \le \delta~~~~~~~~~~~~~~~~~~~~~~ (55)
+\end{align*}
+The method we will describe involves two steps: (1) compute a search direction, using a linear approximation to objective
+and quadratic approximation to the constraint; and (2) perform a line search in that direction, ensuring that we improve the
+nonlinear objective while satisfying the nonlinear constraint.
+
+（省略）
+
+Having computed the search direction $s\approx A^{-1}g$, we next need to compute the maximal step length $\beta$
+such that $\theta + \beta s$ will satisfy the KL divergence constraint.
+To do this, let $\delta = \bar{D}_{KL} \approx \frac{1}{2}(\beta s)^TA(\beta s) = \frac{1}{2}\beta^2s^TAs$.
+From this, we obtain $\beta=\sqrt{2\delta/s^TAs}$, where $\delta$ is the desired KL divergence.
+（省略）
+
+Last, we use a line search to ensure improvement of the surrogate objective and satisfaction of the KL divergence constraint,
+both of which are nonlinear in the parameter vector $\theta$ (and thus depart from the linear and quadratic approximations used
+to compute the step). We perform the line search on the objective
+$L_{\theta_{old}}-\mathcal{X}[\bar{D}_{KL}(\theta_{old},\theta)\le\delta]$,
+where $\mathcal{X}[...]$ equals zero when its argument is true and $+\infty$ when it is false.
+Starting with the maximal value of the step length $\beta$ computed
+in the previous paragraph, we shrink $\beta$ exponentially until the objective improves.
+（省略）
+
+
+この操作は，Algorthm~\ref{alg:tr}とは若干異なる．
+具体的には，
+制約付き最適化問題の近似解を得て精度を評価するという部分はAlgorthm~\ref{alg:tr}と同じであるが，
+Algorthm~\ref{alg:tr}の14-18行目のように$p_k$（TRPOの勾配$g$に相当）を計算した後に更新する／しないの2択をしていない部分が異なる．
+つまり，
+Algorthm~\ref{alg:tr}では精度が悪い場合には更新を全くしないのだが，
+TRPOでは精度が悪い場合にはステップ幅を縮小して更新している．
+そして，このステップ幅を選ぶ動作が，line searchである．
+
+
+\cite{nocedal2006numerical}ではline search vs trust regionという文脈で書かれていたため，混乱するかもしれない（私は最初混乱した）が，
+TRPOの解釈をまとめると，
+\begin{itemize}
+\item ステップ$p_k$（TRPOの勾配$g$に相当）を得る動作は制約付き最適化問題の解として得ていて，これはtrust region法に特有のアイデアである
+（つまり，line searchには無いアイデアである）．
+\item ステップ$p_k$を使って更新する部分はTRPOにおいて拡張されていて（更新する／しないの2択→ステップ幅を選んで更新），
+その際にline searchを導入している．
+\end{itemize}
+
+（余談：TRPO論文は（の旧版？）を引用しているものの，付録においてヘッセベクトル積やフィッシャーベクトル積の部分だけ参照しているだけである）．
+
+\subsection{まとめ}
+\begin{itemize}
+\item 方策勾配法をtrust region法でやる．
+\item 一般に，trust region法では，ステップを評価した後に式(\ref{no_eq:4.4})に基づいて更新するため，trust region自体はどの空間で考えても（accept ratio$\eta$には依るが）ロバストに更新できるはずである．TRPOの場合には，RLの問題構造に動機づけられた確率的方策の間のKL divergenceに基づいてtrust regionを考える．これが，なんか効率化にいいらしい．
+\item 勾配を得るための局所近似に対してロバストなのであって，サンプル近似に対してロバストなわけではない．
+\item TRPOの論文\cite{schulman2015trust}の時点では，アドバンテージ関数の代わりにQ値を用いて勾配をサンプル推定しているアルゴリズムが示されている．ただし，その後のGAEの論文\cite{schulman2016high}においてアドバンテージ関数のサンプル推定が可能になったため，いまTRPOと名がついている実装例のほとんどは，GAEと組み合わされたものである（$Q$値よりアドバンテージ関数の方が良い）．
+\end{itemize}

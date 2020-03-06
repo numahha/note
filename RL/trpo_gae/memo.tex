@@ -1,0 +1,42 @@
+\documentclass{jsarticle}
+\usepackage[dvips]{graphicx}
+\usepackage{amsmath}
+\usepackage{longtable}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{comment}
+\input{symbol}
+\input{MAS_SIZE}
+\input{texstyle.STY}
+\renewcommand{\tablename}{Table~}
+\renewcommand{\figurename}{Fig.~}
+
+\usepackage{algorithm}%
+\usepackage{algpseudocode}
+
+\bibliographystyle{plain}
+
+
+\title{信頼領域法，TRPO，GAE}
+\author{菱沼 徹}
+\date{\today}
+\begin{document}
+\maketitle
+
+\begin{itemize}
+\item 信頼領域法・・・一般的な連続凸最適化問題における勾配法の一種．
+\item TRPO・・・信頼領域法のアイデアを，強化学習における方策改善に適用．
+\item GAE・・・関数近似を改善する方法．
+\end{itemize}
+
+\input{trust_region}
+\newpage
+\input{trpo}
+\newpage
+\input{gae}
+
+
+
+\bibliography{ref}
+
+\end{document}

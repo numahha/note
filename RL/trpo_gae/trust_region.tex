@@ -1,0 +1,120 @@
+\section{Trust Region 法（\cite{nocedal2006numerical}の4節）}
+非線形最適化問題では，非線形目的関数$f(x)$を最小化することを目指す．
+そのままでは解くことは難しいため，現在の探索点周りで近似最適化問題を設定し，その解を用いて次の探索点を見つける，ということの反復を考える．
+$k$反復目の近似最適化問題は，現在の探索点$x_k$の周りで$f$をある次数までTaylaor展開したものを近似問題の目的関数として扱い，これを（$n$次）モデル関数と呼び，$m_k$で表す．
+
+
+現在の探索点から次の探索点までのステップの決め方には，2つのアプローチがある（\cite{nocedal2006numerical}の65ページ）．
+\begin{itemize}
+\item line search ... $f$のモデル関数を用いて勾配を導出し，その方向に沿って適切なステップ幅$\alpha$を決める．
+\item trust region ... まずモデル関数が$f$を適切に表現していると信頼できる領域を定義し，その後この領域におけるモデルを近似的に最小にするようにステップを選ぶ．
+\end{itemize}
+
+実際のアルゴリズムでは，trust regionのサイズを，以前の反復の間のアルゴリズムの性能に従って決める．
+もしモデルが信頼できて目的関数の挙動を正確に予測するなら，
+trust regionのサイズは大きくなり大きなステップがとられる．
+逆に，失敗したステップの場合には，現在のモデル関数が現在のtrust region上の目的関数を適切に表現していないことが分かり，trust regionのサイズを小さくしてもう一度ステップを計算しなおす．
+
+
+\subsection{概要}
+次の2次モデル関数を考える（\cite{nocedal2006numerical}の式(4.1)）．
+\begin{align}
+  m_k(p) = f_k + \nabla f_k^Tp + \frac{1}{2}p^TB_kp
+  \label{no_eq:4.1}
+\end{align}
+ここで，$f_k=f(x_k)$，$\nabla f_k=\nabla f(x_k)$，$B_k$は対称行列とする．
+Taylorの定理より，$t\in(0,1)$に対して，
+\begin{align}
+  f(x_k+p) = f_k + \nabla f_kp + \frac{1}{2}p^T \nabla^2 (x_k+tp)p
+  \label{no_eq:4.2}
+\end{align}
+であるため，$m_k(p)$と$f(x_k+p)$の間の差は${\mathcal{O}}(||p||^2)$である（\cite{nocedal2006numerical}の式(4.2)）．
+
+$B_k$が真のヘッセ行列$\nabla^2 f(x_k)$に等しい場合，近似誤差は${\mathcal{O}}(||p||^3)$である．
+$B_k=\nabla^2 f(x_k)$である場合はtrust-region Newton法と呼ばれるが，ここでは一般に（対称で一様有界な）$B_k$を用いる場合を述べるとする．
+
+各ステップを得るために，次の部分問題の解を探す（\cite{nocedal2006numerical}の式(4.3)）．
+\begin{align}
+  \min_p m_k(p) = f_k + \nabla f_k^Tp + \frac{1}{2}p^TB_kp, ~~~s.t.~||p||\le \Delta_k
+    \label{no_eq:4.3}
+\end{align}
+ここで，$\Delta_k>0$は，trust-region半径である．
+$||\cdot||$をユークリッドノルムとして，問題(\ref{no_eq:4.3})の解$p_k^\ast$は半径$\Delta_k$のボールの中で$m_k$を最小化する．
+したがって，trust-region法は，目的関数と制約の両方が2次である部分問題(\ref{no_eq:4.3})の系列を解くことを要求する．
+もし$B_k$が正定で$||B_k^{-1}\nabla f_k||\le\Delta_k$なら，
+問題(\ref{no_eq:4.3})の解を見つけることは簡単である．
+それは，単純な制約されていない最小値$p_k^B=-B_k^{-1}\nabla f_k$である．
+他の場合には問題(\ref{no_eq:4.3})の解は明らかではないが，通常は，特別に大きい努力をせずとも見つけることができる．
+いずれの場合においても，収束と良い実用性を得るために必要なのは，近似解のみである．
+
+trust region法を定義する最初の課題は，各反復においてtrust region半径$\Delta_k$を選ぶ方法である．
+我々は，この方法を，各反復におけるモデル関数$m_k$と目的関数$f$の間の合意（agreement）に基づかせる．
+与えられたステップ$p_k$に対して，次の比を定義する（\cite{nocedal2006numerical}の式(4.4)）．
+\begin{align}
+  \rho_k = \frac{f(x_k)-f(x_k+p_k)}{m_k(0)-m_k(p_k)}
+    \label{no_eq:4.4}
+\end{align}
+分子はactual reduction（実際の減少），分母はpredicted reduction（予測される減少）と呼ばれる．
+$p=0$を含む領域にわたるモデル$m_k$を最小化することにより$p_k$が得られるため，predicted reductionは常に非負である．
+そのため，次のことが考えられる．
+\begin{itemize}
+\item もし$\rho_k$が負なら，新しい目的関数の値$f(x_k+p_k)$は現在の目的関数の値$f(x_k)$よりも大きくなってしまうため，ステップ$p_k$は排除されるべきである（Algorthm~\ref{alg:tr}の17行目）．
+\item 逆に，もし$\rho_k$が1に近いなら，このステップについてモデル$m_k$は関数$f$の良い近似をしているため，次の反復に対するtrust regionを安全に拡大する（Algorthm~\ref{alg:tr}の9行目）．
+\item もし$\rho_k$が正だが1に近くないなら，trust regionを変化させない（Algorthm~\ref{alg:tr}の11行目）．
+\item しかし，もし$\rho_k$がゼロや負に近いなら，trust regionを小さくする（Algorthm~\ref{alg:tr}の6行目）．
+\end{itemize}
+Algorthm~\ref{alg:tr}はtrust region法の概要を説明する．
+
+\begin{algorithm}[t]
+   \caption{Trust Region法}
+   \label{alg:tr}
+   \begin{algorithmic}[1]
+     \State $\bar{\Delta}>0$，$\Delta_0\in(0,\bar{\Delta})$，$\eta\in[0,\frac{1}{4})$を与える．
+     \For{$k=0,1,\cdots$}
+     \State 問題(\ref{no_eq:4.3})を解いて，$p_k$を得る．
+     \State 式(\ref{no_eq:4.4})より$\rho_k$を計算する．
+     \If{$\rho_k<\frac{1}{4}$}
+     \State $\Delta_{k+1}=\frac{1}{4}||p_k||$（小さくする）
+     \Else
+       \If{$\rho_k>\frac{3}{4}$ and $||p_k||=\Delta_k$}
+       \State $\Delta_{k+1}=\min(2\Delta_k,\bar{\Delta})$（大きくする）
+       \Else
+       \State $\Delta_{k+1}=\Delta_k$（変化させない）
+       \EndIf
+     \EndIf
+     \If{$\rho_k>\eta$}
+     \State $x_{k+1}=x_k+p_k$（更新する）
+     \Else
+     \State $x_{k+1}=x_k$（更新せずやり直す）
+     \EndIf
+     \EndFor
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{自分のための補足}
+\paragraph{1変数のRolleの定理．}
+$f$が$[a,b]$で連続，$(a,b)$で微分可能，$f(b)=f(a)$のとき，ある$\xi\in(0,1)$で$f'(\xi)=0$となる．
+
+
+\paragraph{1変数のTaylorの定理．}
+\begin{align*}
+  f(x+p) = f(x) + f'(x)p + \frac{1}{2}mp^2
+\end{align*}
+とおく．さらに，
+\begin{align*}
+  F(y) = f(x+p) - f(y) + f'(x)(x+p-y) + \frac{1}{2}m(x+p-y)^2
+\end{align*}
+とおく．このとき，$F(x)=F(x+p)=0$が成り立つ．また，Rolleの定理より，ある$\xi\in(x,x+p)$に対して，$F'(\xi)=0$が成り立つため，次式が得られる．
+\begin{align*}
+  (-f''(\xi)+2m)(x+p-\xi)=0
+\end{align*}
+したがって，$m=\frac{f''(\xi)}{2}$が成り立つ．$\xi\in(x,x+p)$を$\xi=x+tp$と書き直せば（$t\in(0,1)$），
+\begin{align*}
+  f(x+p) = f(x) + f'(x)p + \frac{1}{2}f''(x+tp)p^2
+\end{align*}
+
+\paragraph{多変数のTaylorの定理．}
+導出は省略するが，上式を拡張して次のように書ける．
+\begin{align*}
+  f(x+p) = f(x) + \nabla f(x)p + \frac{1}{2}p^T \nabla^2 (x+tp)p
+\end{align*}
