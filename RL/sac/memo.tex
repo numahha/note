@@ -1,0 +1,46 @@
+\documentclass{jsarticle}
+\usepackage[dvips]{graphicx}
+\usepackage{amsmath}
+\usepackage{longtable}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{comment}
+\input{symbol}
+\input{MAS_SIZE}
+\input{texstyle.STY}
+\renewcommand{\tablename}{Table~}
+\renewcommand{\figurename}{Fig.~}
+
+\usepackage{algorithm}%
+\usepackage{algpseudocode}
+
+\bibliographystyle{plain}
+
+
+\title{Soft Actor Criticメモ\cite{haarnoja2018soft}}
+\author{菱沼 徹}
+\date{\today}
+\begin{document}
+\maketitle
+
+
+\paragraph{\cite{haarnoja2018soft}の利点．}
+\begin{itemize}
+\item 方策は，より広く探索するように奨励される．
+\item 方策は，最適挙動の周りの複数モードを捉えることができる．
+\item この目的関数で，探索を改善することができるという結果が過去（\cite{haarnoja2017reinforcement}のこと）に得られている．
+\end{itemize}
+
+\paragraph{既存研究との比較．}
+既存研究（\cite{haarnoja2017reinforcement}のこと）は，ソフトQ関数のBellman方程式を，直接解くことを提案していた．
+この研究（\cite{haarnoja2018soft}のこと）では，「現在の方策のQ関数を評価してオフ方策勾配更新を通じて方策改善する」というような方策反復定式をを通じて，SACを実装する方法を議論する．
+最大エントロピー強化学習においてオフ方策actor criticを提案したのが新しい（らしい）．
+
+\input{soft}
+\input{sac}
+
+
+
+\bibliography{ref}
+
+\end{document}

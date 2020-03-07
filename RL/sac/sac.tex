@@ -1,0 +1,283 @@
+\section{SAC \cite{haarnoja2018soft}}
+\subsection{数式}
+\if0
+\paragraph{ソフト方策評価写像．}
+通常の方策評価写像と同様にして，ソフト方策評価写像$T^\pi$を次で定義する．
+\begin{align*}
+T^{\pi} Q(s_t,a_t) = r(s_t,a_t) + \gamma \mathbb{E}_{s_{t+1}\sim p}[V(s_{t+1})]
+\end{align*}
+ここで，
+\begin{align*}
+V(s_t)
+=
+\mathbb{E}_{a_t\sim \pi}\left[
+ Q(s_t,a_t) -\alpha\ln \pi(a_t|s_t)
+\right]
+\end{align*}
+
+\fi
+
+\paragraph{ソフト方策改善．}
+\begin{align*}
+\pi^{new}
+&=
+\arg\min_{\pi}
+D_{KL}\left(
+\pi(\cdot|s_t) \middle|\middle|\frac{\exp\left( \frac{1}{\alpha}Q^{\pi^{old}}(s_t,\cdot)\right)}{\frac{1}{\alpha}V^{\pi^{old}}(s_t)}
+\right)
+\\
+&=
+\arg\min_{\pi}
+\int
+\pi(a_t|s_t)
+\left(
+\ln \pi(a_t|s_t) - \ln \frac{\exp\left( \frac{1}{\alpha}Q^{\pi^{old}}(s_t,\cdot)\right)}{\frac{1}{\alpha}V^{\pi^{old}}(s_t)}
+\right)da_t
+\\
+&=
+\arg\min_{\pi}
+\int
+\pi(a_t|s_t)
+\left(
+\ln \pi(a_t|s_t) - \frac{1}{\alpha}Q^{\pi^{old}}(s_t,\cdot)+ \ln \frac{1}{\alpha}V^{\pi^{old}}(s_t)
+\right)da_t
+\\
+&=
+\arg\max_{\pi}
+\int
+\pi(a_t|s_t)
+\left(
+Q^{\pi^{old}}(s_t,\cdot)- \alpha\ln \pi(a_t|s_t)
+\right)da_t
+\\
+&=
+\arg\max_{\pi}
+\mathbb{E}_{a_t\sim\pi}[
+Q^{\pi^{old}}(s_t,\cdot)- \alpha\ln \pi(a_t|s_t)]
+=
+\arg\max_{\pi}
+\mathbb{E}_{a_t\sim\pi}[
+Q^{\pi^{old}}(s_t,\cdot) + \alpha\mathcal{H}(\pi(\cdot|s_t))
+]
+\end{align*}
+
+まず，$\pi^{new}=\pi^{old}$として選ぶことが可能であるため，次の不等式が成り立つ．
+\begin{align*}
+\mathbb{E}_{a_t\sim\pi^{new}}[
+Q^{\pi^{old}}(s_t,\cdot) + \alpha\mathcal{H}(\pi^{new}(\cdot|s_t))
+]
+&=
+\max_\pi
+\mathbb{E}_{a_t\sim\pi}[
+Q^{\pi^{old}}(s_t,\cdot) + \alpha\mathcal{H}(\pi(\cdot|s_t))
+]
+\\
+&\ge
+\mathbb{E}_{a_t\sim\pi^{old}}[
+Q^{\pi^{old}}(s_t,\cdot) + \alpha\mathcal{H}(\pi^{old}(\cdot|s_t))
+]
+=J(\pi^{old})
+\end{align*}
+
+また，次の不等式が成り立つ（\cite{haarnoja2017reinforcement}の付録参照）．
+\begin{align*}
+Q^{\pi^{new}}(s_t,a_t) \ge Q^{\pi^{old}}(s_t,a_t)
+\end{align*}
+
+
+これら2つの不等式を合わせると，
+\begin{align*}
+J({\pi^{new}}) &=
+\mathbb{E}_{a_t\sim\pi^{new}}[
+Q^{\pi^{new}}(s_t,\cdot) + \alpha\mathcal{H}(\pi^{new}(\cdot|s_t))
+]
+\\
+&\ge
+\mathbb{E}_{a_t\sim\pi^{new}}[
+Q^{\pi^{old}}(s_t,\cdot) + \alpha\mathcal{H}(\pi^{new}(\cdot|s_t))
+]
+\\
+&\ge
+\mathbb{E}_{a_t\sim\pi^{old}}[
+Q^{\pi^{old}}(s_t,\cdot) + \alpha\mathcal{H}(\pi^{old}(\cdot|s_t))
+]
+=
+J({\pi^{old}})
+\end{align*}
+従って，$D_{KL}\left(
+\pi(\cdot|s_t) \middle|\middle|\frac{\exp\left( \frac{1}{\alpha}Q^{\pi^{old}}(s_t,\cdot)\right)}{\frac{1}{\alpha}V^{\pi^{old}}(s_t)}
+\right)$を最小化する方策$\pi$を選べば，評価指標は必ず改善される．
+
+
+\subsection{アルゴリズム}
+\paragraph{近似対象．}
+\begin{itemize}
+\item ソフト状態価値関数：$V_\psi(s)$
+\item ソフトQ関数：$Q_{\theta}(s,a)$
+\item 方策：$\pi_\phi(a|s)$
+\end{itemize}
+
+\paragraph{ソフト状態価値関数．}残差事情最小化により訓練する．
+\begin{align*}
+J_V(\psi) = \frac{1}{2}\mathbb{E}_{s_t\sim D}\left[
+\left(
+V_\psi(s_t) - \mathbb{E}_{a_t\sim\pi_\phi}\left[ Q_\theta(s_t,a_t)-\ln\pi_\phi(a_t|s_t) \right]
+\right)^2
+\right]
+\end{align*}
+勾配を取ってサンプル近似する．
+\begin{align*}
+\nabla_\psi J_V(\psi) &= \mathbb{E}_{s_t\sim D}\left[
+\left(
+V_\psi(s_t) - \mathbb{E}_{a_t\sim\pi_\phi}\left[ Q_\theta(s_t,a_t)-\ln\pi_\phi(a_t|s_t) \right]
+\right)\nabla_\psi V_\psi(s_t)
+\right]
+\\
+&\approx
+\left(
+V_\psi(s_t) - \left[ Q_\theta(s_t,a_t)-\ln\pi_\phi(a_t|s_t) \right]
+\right)\nabla_\psi V_\psi(s_t)
+\end{align*}
+注意：原理的にはソフト状態価値関数は必要ない．しかし，ソフト価値関数のための近似器を分離して持っておくことは，また他のネットワークと同時に訓練をするのに便利である．
+
+
+\paragraph{ソフトQ関数．}ソフトBellman残差を最小化するように訓練する．
+\begin{align*}
+J_Q(\theta) = \frac{1}{2}\mathbb{E}_{(s_t,a_t)\sim D}\left[
+\left(
+Q_\theta(s_t,a_t)
+- \left[
+r(s_t,a_t) + \gamma \mathbb{E}_{s_{t+1}\sim p} [V_{\tilde{\psi}} (s_{t+1})]
+\right]
+\right)^2
+\right]
+\end{align*}
+勾配を取ってサンプル近似すると，
+\begin{align*}
+\nabla_\theta J_Q(\theta) &= \mathbb{E}_{(s_t,a_t)\sim D}
+\left[
+\left(
+Q_\theta(s_t,a_t) - \left[ r(s_t,a_t) + \gamma \mathbb{E}_{s_{t+1}\sim p}[V_{\tilde{\psi}}(s_{t+1})] \right]
+\right)
+\nabla_\theta Q_\theta(s_t,a_t)
+\right]
+\\
+&\approx
+\left(
+Q_\theta(s_t,a_t) - \left[ r(s_t,a_t) + \gamma V_{\tilde{\psi}}(s_{t+1}) \right]
+\right)
+\nabla_\theta Q_\theta(s_t,a_t)
+\end{align*}
+ターゲット価値ネットワーク$V_{\tilde{\psi}}$のターゲット重み$\tilde{\psi}$を，現在の価値関数重みと周期的に一致するように選ぶ
+（\cite{haarnoja2018soft}の付録E参照）
+
+
+\paragraph{方策．}
+期待KLダイバージェンスを最小化するように学習する．
+\begin{align*}
+J_\pi(\phi)
+&=
+\mathbb{E}_{s_t\sim D}\left[
+D_{KL}\left(
+\pi_\phi(\cdot|s_t) \middle|\middle|\frac{\exp(Q_\theta(s_t,\cdot))}{Z_\theta(s_t)}
+\right)
+\right]
+\\
+&=
+\mathbb{E}_{s_t\sim D}\left[
+\int \pi_\phi(a_t|s_t) \left(\ln \pi_\phi(a_t|s_t) - \ln \frac{\exp(Q_\theta(s_t,a_t))}{Z_\theta(s_t)} \right) da_t
+\right]
+\\
+&=
+\mathbb{E}_{s_t\sim D}\left[
+\int \pi_\phi(a_t|s_t) \left(\ln \pi_\phi(a_t|s_t) - Q_\theta(s_t,a_t) \right) da_t + \ln Z_\theta(s_t)
+\right]
+\end{align*}
+ここで，分配関数$Z_\theta(s_t)=\int \exp(Q_\theta(s_t,a_t))dt$である．
+勾配を取ると，
+\begin{align*}
+\nabla_\phi J_\pi(\phi)
+&=
+\mathbb{E}_{s_t\sim D}\left[
+\nabla_\phi
+\int \pi_\phi(a_t|s_t) \left(\ln \pi_\phi(a_t|s_t) - Q_\theta(s_t,a_t) \right) da_t
+\right]
+\\
+&=
+\mathbb{E}_{s_t\sim D}\left[
+\nabla_\phi
+\mathbb{E}_{a_t\sim \pi_\phi(\cdot|s_t)}\left[
+\ln \pi_\phi(a_t|s_t) - Q_\theta(s_t,a_t)
+\right]
+\right]
+\end{align*}
+再パラメータ化$a_t=f_\phi(\epsilon_t;s_t)$としてサンプル近似すると，
+\begin{align*}
+\nabla_\phi J_\pi(\phi)
+&=
+\mathbb{E}_{s_t\sim D}\left[
+\nabla_\phi
+\mathbb{E}_{\epsilon_t\sim \mathcal{N}}\left[
+\ln \pi_\phi(f_\phi(\epsilon_t;s_t)|s_t) - Q_\theta(s_t,f_\phi(\epsilon_t;s_t))
+\right]
+\right]
+\\
+&=
+\mathbb{E}_{s_t\sim D}\left[
+\mathbb{E}_{\epsilon_t\sim \mathcal{N}}\left[
+\nabla_\phi\left\{
+\ln \pi_\phi(f_\phi(\epsilon_t;s_t)|s_t) - Q_\theta(s_t,f_\phi(\epsilon_t;s_t))
+\right\}
+\right]
+\right]
+\\
+&=
+\mathbb{E}_{s_t\sim D}\left[
+\mathbb{E}_{\epsilon_t\sim \mathcal{N}}\left[
+\nabla_\phi \left\{
+\ln \pi_\phi(a_t|s_t) - Q_\theta(s_t,a_t)
+\right\}
++
+(\nabla_\phi f_\phi(\epsilon_t;s_t))
+\nabla_{a_t}
+\left\{
+\ln \pi_\phi(a_t|s_t) - Q_\theta(s_t,a_t)
+\right\}
+\right]
+\right]
+\\
+&=
+\mathbb{E}_{s_t\sim D}\left[
+\mathbb{E}_{\epsilon_t\sim \mathcal{N}}\left[
+\nabla_\phi
+\ln \pi_\phi(a_t|s_t)
++
+(\nabla_\phi f_\phi(\epsilon_t;s_t))
+\left\{
+\nabla_{a_t} \ln \pi_\phi(a_t|s_t) - \nabla_{a_t} Q_\theta(s_t,a_t)
+\right\}
+\right]
+\right]
+\\
+&\approx
+\nabla_\phi
+\ln \pi_\phi(a_t|s_t)
++
+(\nabla_\phi f_\phi(\epsilon_t;s_t))
+\left\{
+\nabla_{a_t} \ln \pi_\phi(a_t|s_t) - \nabla_{a_t} Q_\theta(s_t,a_t)
+\right\}
+\end{align*}
+
+
+\paragraph{2つのQ関数の利用．}
+方策改善における正のバイアス（これは価値ベース手法の性能を低下させることが知られている）を低減化するために，
+二つのQ関数を使う（パラメータをそれぞれ$\theta_1$と$\theta_2$とする）．
+これらのQ関数の内小さい方を，
+$\nabla_\psi J_V(\psi)$と$\nabla_\phi J_\pi(\phi)$のサンプル近似に使う．
+1つのQ関数を使っても学習はできるものの，2つのQ関数を使う方がより早く学習できる．
+
+\paragraph{リプレイバッファ．}
+現在の方策を用いた環境から経験を集め，リプレイバッファからサンプルされたバッチから確率的勾配を用いて関数近似器を更新する．
+実際には，1環境ステップに対して，one or several勾配ステップを行う．
+価値推定器と方策の両方が完全にオフ方策データ上で訓練できるため，リプレイバッファからオフ方策データを使うことが可能である．

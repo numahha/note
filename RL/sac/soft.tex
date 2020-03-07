@@ -1,0 +1,161 @@
+\section{最大エントロピー強化学習（\cite{haarnoja2017reinforcement}の表記）}
+\subsection{定式}
+確率分布のエントロピーは，次のように定義される（これは一般的な定義である）．
+\begin{align*}
+{\mathcal{H}}(p(\cdot)) = -\int p(x) \ln p(x) dx = \mathbb{E}_{x\sim p}[-\ln p(x)]\ge 0
+\end{align*}
+
+方策$\pi(a_t|s_t)$により誘導される軌道における状態と状態行動対の分布を$\rho_\pi(s_t)$と$\rho_\pi(s_t,a_t)$とおく．
+ソフトQ関数（soft Q-function）を次のように定義する．
+\begin{align*}
+Q^\pi(s_t,a_t) = r(s_t,a_t) + \mathbb{E}_{(s_{t+1},\cdots)\sim \rho_\pi}
+\left[
+\sum_{\ell=1}^\infty \gamma^\ell \left( r(s_{t+\ell},a_{t+\ell}) + \alpha {\mathcal{H}}(\pi(\cdot|s_{t+\ell})) \right)
+\right]
+\end{align*}
+
+ソフト価値関数（soft value function）を次のように定義する．
+\begin{align*}
+V^\pi(s_t) = \alpha\ln\int \exp\left( \frac{1}{\alpha}Q(s_t,a)\right)da
+\end{align*}
+
+方策の評価関数を次のように定義する．
+\begin{align*}
+J(\pi) = \sum_{t} \mathbb{E}_{(s_t,a_t)\sim\rho_\pi}\left[
+Q^\pi(s_t,a_t) + \alpha {\mathcal{H}}(\pi(\cdot|s_{t}))
+\right]
+\end{align*}
+
+
+\subsection{算数}
+次のように変形できる．
+\begin{align*}
+Q(s_t,a_t)
+&= r(s_t,a_t) + \mathbb{E}_{(s_{t+1},\cdots)\sim \rho_\pi}
+\left[
+\sum_{\ell=1}^\infty \gamma^\ell \left( r(s_{t+\ell},a_{t+\ell}) + \alpha {\mathcal{H}}(\pi(\cdot|s_{t+\ell})) \right)
+\right]
+\\
+&= r(s_t,a_t) + \mathbb{E}_{(s_{t+1},\cdots)\sim \rho_\pi}
+\left[
+\gamma r(s_{t+1},a_{t+1}) + \gamma \alpha {\mathcal{H}}(\pi(\cdot|s_{t+1}))
++
+\gamma\sum_{\ell=1}^\infty \gamma^\ell \left( r(s_{t+1+\ell},a_{t+1+\ell}) + \alpha {\mathcal{H}}(\pi(\cdot|s_{t+1+\ell})) \right)
+\right]
+\\
+&= r(s_t,a_t) + \gamma \mathbb{E}_{(s_{t+1},a_{t+1})\sim \rho_\pi}
+\left[
+\alpha {\mathcal{H}}(\pi(\cdot|s_{t+1}))
++
+Q(s_{t+1},a_{t+1})
+\right]
+\\
+&= r(s_t,a_t) + \gamma \mathbb{E}_{s_{t+1}\sim \rho_\pi}
+\left[
+\alpha {\mathcal{H}}(\pi(\cdot|s_{t+1}))
++
+\mathbb{E}_{a_{t+1}\sim \pi}
+\left[
+Q(s_{t+1},a_{t+1})
+\right]
+\right]
+\end{align*}
+
+
+また，次が成り立つ．
+\begin{align*}
+\exp\left( \frac{1}{\alpha} V(s_t) \right)
+&= \exp \left\{ \ln\left( \int \exp\left( \frac{1}{\alpha}Q(s_t,a)\right) da \right) \right\}
+= \int \exp\left( \frac{1}{\alpha}Q(s_t,a)\right) da
+\\
+\exp \left[\frac{1}{\alpha}Q(s_t,a_t)-\frac{1}{\alpha}V(s_t)\right]
+&=
+\frac{\exp \frac{1}{\alpha}Q(s_t,a_t)}
+{\exp \left(\frac{1}{\alpha}V(s_t)\right)}
+=
+\frac{\exp \frac{1}{\alpha}Q(s_t,a_t)}
+{\int \exp\left( \frac{1}{\alpha}Q(s_t,a)\right) da}
+\end{align*}
+
+\paragraph{方策$\pi(a_t|s_t)\propto \left( \frac{1}{\alpha}Q(s_t,a_t) \right)$に対して成り立つこと．}
+もし方策を
+$\pi(a_t|s_t)=\exp \left[\frac{1}{\alpha}Q(s_t,a_t)-\frac{1}{\alpha}V(s_t)\right]\propto \left( \frac{1}{\alpha}Q(s_t,a_t) \right)$のように表現したとすると，次が成り立つ．
+\begin{align*}
+\mathcal{H}(\pi(\cdot|s_t))
+=
+\mathbb{E}_{a_t\sim \pi}[-\ln \pi(a_t|s_t)]
+=
+-
+\mathbb{E}_{a_t\sim \pi}\left[
+ \frac{1}{\alpha}Q(s_t,a_t)-\frac{1}{\alpha}V(s_t)
+\right]
+=
+-
+\mathbb{E}_{a_t\sim \pi}\left[
+ \frac{1}{\alpha}Q(s_t,a_t)
+\right]
++
+\frac{1}{\alpha}V(s_t)
+\end{align*}
+これを整理すると，
+\begin{align*}
+V(s_t)
+=
+\mathbb{E}_{a_t\sim \pi}\left[
+ Q(s_t,a_t)
+\right]
++
+\alpha\mathcal{H}(\pi(\cdot|s_t))
+=
+\mathbb{E}_{a_t\sim \pi}\left[
+ Q(s_t,a_t) -\alpha\ln \pi(a_t|s_t)
+\right]
+\end{align*}
+これを用いて，
+\begin{align*}
+Q(s_t,a_t)
+= r(s_t,a_t) + \gamma \mathbb{E}_{(s_{t+1})\sim \rho_\pi}
+\left[
+V(s_{t+1})
+\right]
+\end{align*}
+
+
+
+\subsection{最適解の性質}
+\paragraph{最適方策（定理1）．}
+評価関数$J(\pi)$を最小化する方策$\pi^\ast$は，
+$\pi^\ast(a_t|s_t)\propto \exp(\frac{1}{\alpha}Q^\ast(s,\cdot))$という方策で与えることができる（$Q^\ast$は方策$\pi^\ast$のソフトQ関数）．
+
+証明は\cite{haarnoja2017reinforcement}の付録A.1を参照．
+証明のロジックとしては，
+\begin{itemize}
+\item 任意の方策$\pi$に対して，同等以上の評価関数を持つ方策$\tilde{\pi}\propto \exp(\frac{1}{\alpha}Q(s,\cdot))$が必ず存在する事を示す．
+\item したがって，$\tilde{\pi}\propto \exp(\frac{1}{\alpha}Q(s,\cdot))$のクラスに最適方策が存在する．
+\item Notice that for convenience, we set the entropy parameter $\alpha$ to 1. The theory can be easily adapted by dividing rewards by $\alpha$.
+\end{itemize}
+
+\paragraph{Soft Bellman方程式（定理2）．}
+\begin{align*}
+Q^\ast(s_t,a_t) = r(s_t,a_t) + \gamma \mathbb{E}_{s_{t+1}\sim p}[V^\ast(s_{t+1})]
+\end{align*}
+
+次のようにして証明する．
+\begin{itemize}
+\item $\pi(a_t|s_t)\propto \left( \frac{1}{\alpha}Q(s_t,a_t) \right)$に対して，$Q(s_t,a_t)
+= r(s_t,a_t) + \gamma \mathbb{E}_{(s_{t+1})\sim \rho_\pi}
+\left[
+V(s_{t+1})
+\right]$が成り立つ（上の算数）．
+\item 最適方策は，$\pi^\ast(a_t|s_t)\propto \left( \frac{1}{\alpha}Q^\ast(s_t,a_t) \right)$である（定理1）．
+\end{itemize}
+
+\paragraph{Soft Q反復（定理3）．}
+次の不動点反復アルゴリズムにより，最適方策のソフトQ関数とソフト価値関数が（理論的には）得られる．
+\begin{align*}
+Q(s_t,a_t) &\gets r(s_t,a_t) + \gamma \mathbb{E}_{s_{t+1}\sim p}[V(s_{t+1})]
+\\
+V(s_t) &\gets \alpha\ln\int \exp\left( \frac{1}{\alpha}Q(s_t,a)\right)da
+\end{align*}
+
+ただし，この反復アルゴリズムを連続空間において実行することは実際にはできないので，適当な近似を導入して用いることになる．
