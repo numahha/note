@@ -1,0 +1,249 @@
+\section{方策勾配}
+\subsection{定義と算数}
+軌道$\tau=(s_0,a_0,s_1,a_1,\cdots)$は，終端状態にたどり着くまで，方策$a_t\sim \pi(\cdot|s_t)$に従って行動をサンプリングし，またダイナミクス$s_{t+1}\sim P(s_{t+1}|s_t,a_t)$に従って状態をサンプリングすることにより生成される．
+報酬$r(s_t,a_t)$を，各時間ステップにおいて受け取る．
+割引率を$\gamma\in(0,1)$とする．
+確率的定常方策$\pi$で表し，$a_t\sim\pi(a_t|s_t)$とする．
+
+
+状態行動価値関数$Q_\pi$，価値関数$V_\pi$を次のように定義する．
+\begin{align*}
+  Q_{\pi}(s_t,a_t) &= \mathbb{E}_{s_{t+1},a_{t+1},\cdots}\left[\sum_{\ell=0}^{\infty}\gamma^\ell r(s_{t+\ell},a_{t+\ell})\right]
+  \\
+  V_{\pi}(s_t) &= \mathbb{E}_{a_t,s_{t+1},\cdots}\left[\sum_{\ell=0}^{\infty}\gamma^\ell r(s_{t+\ell},a_{t+\ell})\right]
+\end{align*}
+次が成り立つ．
+\begin{align*}
+  Q_{\pi}(s_t,a_t)
+  &= \mathbb{E}_{s_{t+1},a_{t+1},\cdots}\left[ r(s_{t},a_{t}) + \gamma\sum_{\ell=0}^{\infty}\gamma^\ell r(s_{t+\ell},a_{t+\ell})\right]
+  = r(s_{t},a_{t}) + \gamma\mathbb{E}_{s_{t+1},a_{t+1},\cdots}\left[\sum_{\ell=0}^{\infty}\gamma^\ell r(s_{t+\ell},a_{t+\ell})\right]
+  \\
+  &= r(s_{t},a_{t}) + \gamma \mathbb{E}_{s_{t+1}}\left[V_\pi(s_{t+1})\right]
+  = r(s_{t},a_{t}) + \gamma \sum_{s_{t+1}}P(s_{t+1}|s_t,a_t)V_\pi(s_{t+1})
+  \\
+  V_\pi(s_{t})
+  &=
+  \sum_{a_t}\pi(a_t|s_t)Q_{\pi}(s_t,a_t)
+\end{align*}
+
+
+$d_{\pi}(s)$を，方策$\pi$の下での状態$s$の訪問頻度とする．
+\begin{align*}
+  d_\pi(s) = (1-\gamma)\sum_{t=0}^\infty \gamma^t p(s_t=s|\pi)
+\end{align*}
+ここで，$p(s_t=s|\pi)$は，方策$\pi$の下で時刻$t$において状態$s$に存在する確率である．
+初期状態$s_0$の分布は方策$\pi$に依存しないため実際には$p(s_0=s|\pi)=p(s_0=s)$であるが，
+表記の単純化のために$p(s_t=s|\pi)$と書く．
+
+
+次が成り立つ．
+\begin{align*}
+  \sum_{s} d_\pi(s) = (1-\gamma)\sum_{t=0}^\infty \gamma^t \sum_{s}p(s_t=s|\pi) = (1-\gamma)\sum_{t=0}^\infty \gamma^t = 1
+\end{align*}
+
+
+
+最適化の評価指標として，期待割引報酬$\rho(\pi)$を次のように定義する．
+\begin{align*}
+  \rho(\pi) = \mathbb{E}_{s_0,a_0,\cdots}\left[\sum_{t=0}^{\infty}\gamma^t r(s_t,a_t)\right]
+  =
+  \sum_{s}P(s_0=s) V_\pi(s_0)
+\end{align*}
+\if0
+次が成り立つ．
+\begin{align*}
+  \rho(\pi)
+  &=
+  \sum_{t=0}^{\infty}\left[\sum_{(s,a)}P(s_t=s,a_t=a|\pi)\gamma^t r(s,a)\right]
+  \\
+  &=
+  \sum_{t=0}^{\infty}\left[\sum_{s}\sum_{a}P(s_t=s|\pi) \pi(a|s) \gamma^t r(s,a)\right]
+  \\
+  &=
+  \sum_{s}\sum_{a}\left\{\left[\sum_{t=0}^{\infty} P(s_t=s|\pi) \gamma^t \right]\pi(a|s) r(s,a)\right\}
+  \\
+  &=
+  \frac{1}{1-\gamma} \sum_{s}\sum_{a}\left\{ d_\pi(s)\pi(a|s) r(s,a)\right\}
+  \\
+  &=
+  \frac{1}{1-\gamma} \sum_{s}\left\{ d_\pi(s)\sum_{a}\pi(a|s) r(s,a)\right\}
+\end{align*}
+\fi
+
+\subsection{勾配の導出}
+方策を特徴づけるパラメータを$\theta$とすると，
+\begin{align*}
+  \frac{\partial V_\pi(s_t)}{\partial \theta}
+  &=
+  \frac{\partial}{\partial \theta} \sum_{a_t}\pi(a_t|s_t)Q_{\pi}(s_t,a_t)
+  \\
+  &=
+  \sum_{a_t}\left\{
+  \left[\frac{\partial}{\partial \theta} \pi(a_t|s_t) \right] Q_{\pi}(s_t,a_t)
+  +
+  \pi(a_t|s_t) \left[\frac{\partial}{\partial \theta} Q_{\pi}(s_t,a_t) \right]
+  \right\}
+  \\
+  &=
+  \sum_{a_t}\left\{
+  \left[\frac{\partial}{\partial \theta} \pi(a_t|s_t) \right] Q_{\pi}(s_t,a_t)
+  +
+  \pi(a_t|s_t) \left[\frac{\partial}{\partial \theta} \left(  r(s_{t},a_{t}) + \gamma \sum_{s_{t+1}}P(s_{t+1}|s_t,a_t)V_\pi(s_{t+1})  \right) \right]
+  \right\}
+  \\
+  &=
+  \sum_{a_t}\left\{
+  \left[\frac{\partial}{\partial \theta} \pi(a_t|s_t) \right] Q_{\pi}(s_t,a_t)
+  +
+  \pi(a_t|s_t) \gamma \sum_{s_{t+1}}P(s_{t+1}|s_t,a_t) \left[\frac{\partial}{\partial \theta} V_\pi(s_{t+1}) \right]
+  \right\}
+\end{align*}
+初期状態$s_0$の分布は方策$\pi$に依存しないため実際には$p(s_0=s|\pi)=p(s_0=s)$であり，
+従って$\frac{\partial p(s_0=s|\pi)}{\partial \theta}=\frac{\partial p(s_0=s)}{\partial \theta}=0$であることに注意すると，
+\begin{align*}
+  &\frac{\partial \rho(\pi)}{\partial \theta}
+  =
+  \frac{\partial}{\partial \theta} \left[\sum_{s} p(s_0=s|\pi)V_\pi(s)\right]
+  =
+  \sum_{s}
+  p(s_0=s|\pi)\frac{\partial V_\pi(s)}{\partial \theta}
+  \\
+  &=
+  \sum_{s}
+  \sum_{a}\left\{
+  p(s_0=s|\pi)Q_{\pi}(s,a)\left[\frac{\partial}{\partial \theta} \pi(a|s) \right]
+  +
+  p(s_{0}=s|\pi) \pi(a|s) \gamma \sum_{s'}P(s'|s,a) \left[\frac{\partial}{\partial \theta} V_\pi(s') \right]
+  \right\}
+  \\
+  &=
+  \sum_{s}
+  \sum_{a}\left\{
+  p(s_0=s|\pi)Q_{\pi}(s,a)\left[\frac{\partial}{\partial \theta} \pi(a|s) \right]
+  +
+  \gamma \sum_{s'} p(s_{1}=s'|\pi) \left[\frac{\partial}{\partial \theta} V_\pi(s') \right]
+  \right\}
+  \\
+  &=
+  \sum_{s}
+  \sum_{a}\left\{
+  p(s_0=s|\pi)Q_{\pi}(s,a)\left[\frac{\partial}{\partial \theta} \pi(a|s) \right]
+  \right\}
+  +
+  \gamma \sum_{s'} p(s_{1}=s'|\pi) \left[\frac{\partial}{\partial \theta} V_\pi(s') \right]
+  \\
+  &=
+  \sum_{s}
+  \sum_{a}\left\{
+  p(s_0=s|\pi)Q_{\pi}(s,a)\left[\frac{\partial}{\partial \theta} \pi(a|s) \right]
+  +
+  \gamma \sum_{s'} p(s_{1}=s'|\pi) \left[\frac{\partial}{\partial \theta} \pi(a|s) \right]
+  \right\}
+  +
+  \gamma^2 \sum_{s''} p(s_{2}=s''|\pi) \left[\frac{\partial}{\partial \theta} V_\pi(s'') \right]
+  \\
+  &=
+  \sum_{s}
+  \sum_{a}\left\{
+  \sum_{t}\gamma^t p(s_t=s|\pi)Q_{\pi}(s,a)\left[\frac{\partial}{\partial \theta} \pi(a|s) \right]
+  \right\}
+  =
+  \sum_{s}
+  \sum_{a}
+  \left\{
+  \left[
+  \sum_{t}\gamma^t p(s_t=s|\pi)
+  \right]
+  Q_{\pi}(s,a)\left[\frac{\partial}{\partial \theta} \pi(a|s) \right]
+  \right\}
+  \\
+  &=
+  \frac{1}{1-\gamma}
+  \sum_{s}
+  \sum_{a}
+  \left\{
+  d_\pi(s)
+  Q_{\pi}(s,a)\left[\frac{\partial}{\partial \theta} \pi(a|s) \right]
+  \right\}
+  =
+  \frac{1}{1-\gamma}
+  \sum_{s}
+  \sum_{a}
+  \left\{
+  d_\pi(s)
+  Q_{\pi}(s,a)\left[\pi(a|s)\frac{\partial}{\partial \theta} \ln\pi(a|s) \right]
+  \right\}
+  \\
+  &=
+  \frac{1}{1-\gamma}
+  \sum_{s}
+  \sum_{a}
+  \left\{
+  d_\pi(s)\pi(a|s)
+  Q_{\pi}(s,a)\left[\frac{\partial}{\partial \theta} \ln\pi(a|s) \right]
+  \right\}
+\end{align*}
+ここで，
+$d_\pi(s)\pi(a|s)$は$\pi$の下で$(s,a)$を訪問する頻度である事に注意すれば，
+$(s^{(n)},a^{(n)})$を$n$番目のサンプルとして，次のようにサンプル近似できる．
+\begin{align*}
+\frac{\partial \rho(\pi)}{\partial \theta}
+&\approx
+\frac{1}{1-\gamma}
+\sum_{n}
+\left\{
+Q_{\pi}(s^{(n)},a^{(n)})\left[\frac{\partial}{\partial \theta} \ln\pi(a^{(n)}|s^{(n)}) \right]
+\right\}
+\end{align*}
+
+
+\subsection{baseline関数の利用}
+次が成り立つ．
+\begin{align*}
+\sum_{a}\pi(a|s)
+&=
+1
+\\
+\frac{\partial}{\partial \theta}\sum_{a}\pi(a|s)
+&=
+\sum_{a}\pi(a|s)\frac{\partial}{\partial \theta}\pi(a|s)
+=
+\sum_{a}\pi(a|s)\pi(a|s)\frac{\partial}{\partial \theta}\ln \pi(a|s)
+=
+\frac{\partial}{\partial \theta}1
+=0
+\end{align*}
+従って，任意の関数$b(s)$に対して次が成り立つ．
+\begin{align*}
+\frac{1}{1-\gamma}
+\sum_{s}
+\sum_{a}
+\left\{
+d_\pi(s)\pi(a|s)
+b(s)\left[\frac{\partial}{\partial \theta} \ln\pi(a|s) \right]
+\right\}
+=
+\frac{1}{1-\gamma}
+\sum_{s}
+d_\pi(s)b(s)
+\sum_{a}
+\left\{
+\pi(a|s)
+\left[\frac{\partial}{\partial \theta} \ln\pi(a|s) \right]
+\right\}
+=
+0
+\end{align*}
+従って，方策を勾配を次のように書くことができる．
+\begin{align*}
+&=
+\frac{1}{1-\gamma}
+\sum_{s}
+\sum_{a}
+\left\{
+d_\pi(s)\pi(a|s)
+\left( Q_{\pi}(s,a)-b(s) \right)\left[\frac{\partial}{\partial \theta} \ln\pi(a|s) \right]
+\right\}
+\end{align*}
+ここで，$b(s)$はbaseline関数と呼ばれる．
+特に，$b(s)=V_\pi(s)$としてた場合の$A_\pi(s,a)=Q_\pi(s,a)-V_\pi(s)$はアドバンテージ関数と呼ばれる．
