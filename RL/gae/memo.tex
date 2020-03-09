@@ -1,0 +1,32 @@
+\documentclass{jsarticle}
+\usepackage[dvips]{graphicx}
+\usepackage{amsmath}
+\usepackage{longtable}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{comment}
+\input{symbol}
+\input{MAS_SIZE}
+\input{texstyle.STY}
+\renewcommand{\tablename}{Table~}
+\renewcommand{\figurename}{Fig.~}
+
+\usepackage{algorithm}%
+\usepackage{algpseudocode}
+
+\bibliographystyle{plain}
+
+
+\title{GAE: 一般化アドバンテージ関数\cite{schulman2016high}}
+\author{菱沼 徹}
+\date{\today}
+\begin{document}
+\maketitle
+
+\input{gae}
+
+
+\clearpage
+\bibliography{ref}
+
+\end{document}
