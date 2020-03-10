@@ -185,7 +185,7 @@ $\min_\theta \mathbb{E}[\sum_{t=0}^{\infty}r_t]$を解くために，各反復で勾配$\nabl
 \subsection{価値関数推定}
 サンプルされた報酬の割引総和を，次のようにおく．
 \begin{align*}
-\hat{V}_t=\sum_{\ell=0}^{N}(\lambda\gamma)^{\ell} r_{t+\ell}
+\hat{V}_t=\sum_{\ell=0}^{N-t}(\lambda\gamma)^{\ell} r_{t+\ell}
 \end{align*}
 価値関数を非線形関数近似する場合，最も単純なアプローチは非線形回帰問題を解くことである．
 \begin{align*}

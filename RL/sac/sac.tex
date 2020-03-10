@@ -121,7 +121,7 @@ J({\pi^{old}})
 \begin{align*}
 J_V(\psi) = \frac{1}{2}\mathbb{E}_{s_t\sim D}\left[
 \left(
-V_\psi(s_t) - \mathbb{E}_{a_t\sim\pi_\phi}\left[ Q_\theta(s_t,a_t)-\ln\pi_\phi(a_t|s_t) \right]
+V_\psi(s_t) - \mathbb{E}_{a_t\sim\pi_\phi}\left[ Q_\theta(s_t,a_t)-\alpha\ln\pi_\phi(a_t|s_t) \right]
 \right)^2
 \right]
 \end{align*}
@@ -129,16 +129,18 @@ V_\psi(s_t) - \mathbb{E}_{a_t\sim\pi_\phi}\left[ Q_\theta(s_t,a_t)-\ln\pi_\phi(a
 \begin{align*}
 \nabla_\psi J_V(\psi) &= \mathbb{E}_{s_t\sim D}\left[
 \left(
-V_\psi(s_t) - \mathbb{E}_{a_t\sim\pi_\phi}\left[ Q_\theta(s_t,a_t)-\ln\pi_\phi(a_t|s_t) \right]
+V_\psi(s_t) - \mathbb{E}_{a_t\sim\pi_\phi}\left[ Q_\theta(s_t,a_t)-\alpha\ln\pi_\phi(a_t|s_t) \right]
 \right)\nabla_\psi V_\psi(s_t)
 \right]
 \\
 &\approx
 \left(
-V_\psi(s_t) - \left[ Q_\theta(s_t,a_t)-\ln\pi_\phi(a_t|s_t) \right]
+V_\psi(s_t) - \left[ Q_\theta(s_t,a_t)-\alpha\ln\pi_\phi(a_t|s_t) \right]
 \right)\nabla_\psi V_\psi(s_t)
 \end{align*}
-注意：原理的にはソフト状態価値関数は必要ない．しかし，ソフト価値関数のための近似器を分離して持っておくことは，また他のネットワークと同時に訓練をするのに便利である．
+注意：原理的にはソフト状態価値関数は必要ない．
+しかし，ソフト価値関数のための近似器を分離して持っておくことは，また他のネットワークと同時に訓練をするのに便利である．
+●●●でも，改良版\cite{haarnoja2018soft2}では使われていない●●●
 
 
 \paragraph{ソフトQ関数．}ソフトBellman残差を最小化するように訓練する．
@@ -173,41 +175,43 @@ Q_\theta(s_t,a_t) - \left[ r(s_t,a_t) + \gamma V_{\tilde{\psi}}(s_{t+1}) \right]
 
 
 \paragraph{方策．}
-期待KLダイバージェンスを最小化するように学習する．
+期待KLダイバージェンスを最小化するように学習する
+（ここで，$a_t$は実際に観測されたサンプルではなく，積分変数であるということに注意）．
 \begin{align*}
 J_\pi(\phi)
 &=
 \mathbb{E}_{s_t\sim D}\left[
 D_{KL}\left(
-\pi_\phi(\cdot|s_t) \middle|\middle|\frac{\exp(Q_\theta(s_t,\cdot))}{Z_\theta(s_t)}
+\pi_\phi(\cdot|s_t) \middle|\middle|\frac{\exp(\frac{1}{\alpha}Q_\theta(s_t,\cdot))}{Z_\theta(s_t)}
 \right)
 \right]
 \\
 &=
 \mathbb{E}_{s_t\sim D}\left[
-\int \pi_\phi(a_t|s_t) \left(\ln \pi_\phi(a_t|s_t) - \ln \frac{\exp(Q_\theta(s_t,a_t))}{Z_\theta(s_t)} \right) da_t
+\int \pi_\phi(a_t|s_t) \left(\ln \pi_\phi(a_t|s_t) - \ln \frac{\exp(\frac{1}{\alpha}Q_\theta(s_t,a_t))}{Z_\theta(s_t)} \right) da_t
 \right]
 \\
 &=
 \mathbb{E}_{s_t\sim D}\left[
-\int \pi_\phi(a_t|s_t) \left(\ln \pi_\phi(a_t|s_t) - Q_\theta(s_t,a_t) \right) da_t + \ln Z_\theta(s_t)
+\int \pi_\phi(a_t|s_t) \left(\ln \pi_\phi(a_t|s_t) - \frac{1}{\alpha}Q_\theta(s_t,a_t) \right) da_t
++ \ln Z_\theta(s_t)
 \right]
 \end{align*}
-ここで，分配関数$Z_\theta(s_t)=\int \exp(Q_\theta(s_t,a_t))dt$である．
+ここで，分配関数$Z_\theta(s_t)=\int \exp(\frac{1}{\alpha}Q_\theta(s_t,a_t))dt$である．
 勾配を取ると，
 \begin{align*}
 \nabla_\phi J_\pi(\phi)
 &=
 \mathbb{E}_{s_t\sim D}\left[
 \nabla_\phi
-\int \pi_\phi(a_t|s_t) \left(\ln \pi_\phi(a_t|s_t) - Q_\theta(s_t,a_t) \right) da_t
+\int \pi_\phi(a_t|s_t) \left(\ln \pi_\phi(a_t|s_t) - \frac{1}{\alpha}Q_\theta(s_t,a_t) \right) da_t
 \right]
 \\
 &=
 \mathbb{E}_{s_t\sim D}\left[
 \nabla_\phi
 \mathbb{E}_{a_t\sim \pi_\phi(\cdot|s_t)}\left[
-\ln \pi_\phi(a_t|s_t) - Q_\theta(s_t,a_t)
+\ln \pi_\phi(a_t|s_t) - \frac{1}{\alpha}Q_\theta(s_t,a_t)
 \right]
 \right]
 \end{align*}
@@ -218,7 +222,7 @@ D_{KL}\left(
 \mathbb{E}_{s_t\sim D}\left[
 \nabla_\phi
 \mathbb{E}_{\epsilon_t\sim \mathcal{N}}\left[
-\ln \pi_\phi(f_\phi(\epsilon_t;s_t)|s_t) - Q_\theta(s_t,f_\phi(\epsilon_t;s_t))
+\ln \pi_\phi(f_\phi(\epsilon_t;s_t)|s_t) - \frac{1}{\alpha}Q_\theta(s_t,f_\phi(\epsilon_t;s_t))
 \right]
 \right]
 \\
@@ -226,7 +230,7 @@ D_{KL}\left(
 \mathbb{E}_{s_t\sim D}\left[
 \mathbb{E}_{\epsilon_t\sim \mathcal{N}}\left[
 \nabla_\phi\left\{
-\ln \pi_\phi(f_\phi(\epsilon_t;s_t)|s_t) - Q_\theta(s_t,f_\phi(\epsilon_t;s_t))
+\ln \pi_\phi(f_\phi(\epsilon_t;s_t)|s_t) - \frac{1}{\alpha}Q_\theta(s_t,f_\phi(\epsilon_t;s_t))
 \right\}
 \right]
 \right]
@@ -235,13 +239,13 @@ D_{KL}\left(
 \mathbb{E}_{s_t\sim D}\left[
 \mathbb{E}_{\epsilon_t\sim \mathcal{N}}\left[
 \nabla_\phi \left\{
-\ln \pi_\phi(a_t|s_t) - Q_\theta(s_t,a_t)
+\ln \pi_\phi(a_t|s_t) - \frac{1}{\alpha}Q_\theta(s_t,a_t)
 \right\}
 +
 (\nabla_\phi f_\phi(\epsilon_t;s_t))
 \nabla_{a_t}
 \left\{
-\ln \pi_\phi(a_t|s_t) - Q_\theta(s_t,a_t)
+\ln \pi_\phi(a_t|s_t) - \frac{1}{\alpha}Q_\theta(s_t,a_t)
 \right\}
 \right]
 \right]
@@ -254,7 +258,7 @@ D_{KL}\left(
 +
 (\nabla_\phi f_\phi(\epsilon_t;s_t))
 \left\{
-\nabla_{a_t} \ln \pi_\phi(a_t|s_t) - \nabla_{a_t} Q_\theta(s_t,a_t)
+\nabla_{a_t} \ln \pi_\phi(a_t|s_t) - \nabla_{a_t} \frac{1}{\alpha}Q_\theta(s_t,a_t)
 \right\}
 \right]
 \right]
@@ -265,10 +269,12 @@ D_{KL}\left(
 +
 (\nabla_\phi f_\phi(\epsilon_t;s_t))
 \left\{
-\nabla_{a_t} \ln \pi_\phi(a_t|s_t) - \nabla_{a_t} Q_\theta(s_t,a_t)
+\nabla_{a_t} \ln \pi_\phi(a_t|s_t) - \nabla_{a_t} \frac{1}{\alpha}Q_\theta(s_t,a_t)
 \right\}
 \end{align*}
-
+なお，$s_t$は実環境において観測した実サンプルであるが，
+$a_t$は積分の近似計算のために導入されたシミュレーションサンプル（再パラメータ化を通じて変換して得る）である，
+という事に注意する．
 
 \paragraph{2つのQ関数の利用．}
 方策改善における正のバイアス（これは価値ベース手法の性能を低下させることが知られている）を低減化するために，

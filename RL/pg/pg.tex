@@ -1,4 +1,4 @@
-\section{方策勾配}
+\section{方策勾配\cite{sutton2000policy}}
 \subsection{定義と算数}
 軌道$\tau=(s_0,a_0,s_1,a_1,\cdots)$は，終端状態にたどり着くまで，方策$a_t\sim \pi(\cdot|s_t)$に従って行動をサンプリングし，またダイナミクス$s_{t+1}\sim P(s_{t+1}|s_t,a_t)$に従って状態をサンプリングすることにより生成される．
 報酬$r(s_t,a_t)$を，各時間ステップにおいて受け取る．
@@ -236,6 +236,7 @@ d_\pi(s)b(s)
 \end{align*}
 従って，方策を勾配を次のように書くことができる．
 \begin{align*}
+\frac{\partial \rho(\pi)}{\partial \theta}
 &=
 \frac{1}{1-\gamma}
 \sum_{s}

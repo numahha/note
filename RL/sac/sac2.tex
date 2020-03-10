@@ -1,0 +1,296 @@
+\section{SAC改良版\cite{haarnoja2018soft2}}
+改良版では，温度パラメータ$\alpha$を自動調節する．
+
+\subsection{改良前と同じ部分（＋マイナーチェンジ）}
+\paragraph{ソフトQ関数．}
+改良版では，ソフト価値関数近似器は用いずに，ソフトQ関数近似器を用いて次式で得る．
+\begin{align*}
+V(s_t) = E_{a_t\sim\pi}[Q(s_t,a_t)-\alpha\ln\pi(a_t|s_t)]
+\end{align*}
+そのため，評価関数は
+\begin{align*}
+J_Q(\theta)
+&= \frac{1}{2}\mathbb{E}_{(s_t,a_t)\sim D}\left[
+\left(
+Q_\theta(s_t,a_t)
+- \left[
+r(s_t,a_t) + \gamma \mathbb{E}_{s_{t+1}\sim p} [V(s_{t+1})]
+\right]
+\right)^2
+\right]
+\\
+&= \frac{1}{2}\mathbb{E}_{(s_t,a_t)\sim D}\left[
+\left(
+Q_\theta(s_t,a_t)
+- \left[
+r(s_t,a_t) + \gamma \mathbb{E}_{s_{t+1}\sim p} [E_{a_{t+1}\sim\pi}[Q_\theta(s_{t+1},a_{t+1})-\alpha\ln\pi(a_{t+1}|s_{t+1})]]
+\right]
+\right)^2
+\right]
+\end{align*}
+
+\paragraph{方策．}
+方策$\pi_\phi$の評価関数を，定数項を無視して定数倍すると，次のように定義できる．
+\begin{align*}
+J_\pi(\phi)
+=
+\mathbb{E}_{s_t\sim D}\left[
+\int \pi_\phi(a_t|s_t) \left(\alpha\ln \pi_\phi(a_t|s_t) - Q_\theta(s_t,a_t) \right) da_t
+\right]
+\end{align*}
+再パラメータ化$a_t=f_\phi(\epsilon_t;s_t)$を用いて次のように書き替える．
+\begin{align*}
+J_\pi(\phi)
+&=
+\mathbb{E}_{s_t\sim D}\left[
+\int \mathcal{N}(\epsilon_t)
+\left(\alpha\ln \pi_\phi(f_\phi(\epsilon_t;s_t)|s_t) - Q_\theta(s_t,f_\phi(\epsilon_t;s_t)) \right) d\epsilon_t
+\right]
+\\
+&=
+\mathbb{E}_{s_t\sim D}\left[
+\mathbb{E}_{\epsilon_t\sim \mathcal{N}}\left[
+\alpha\ln \pi_\phi(f_\phi(\epsilon_t;s_t)|s_t) - Q_\theta(s_t,f_\phi(\epsilon_t;s_t))
+\right]
+\right]
+\end{align*}
+
+
+\subsection{温度パラメータ$\alpha$の自動調節}
+\begin{itemize}
+\item 方策の平均エントロピーが制約されているような制約付き最適化問題を考える．
+\item この問題は，SAC更新と双対である．ここで，温度の役割を果たす双対変数が，追加更新される．
+\end{itemize}
+
+最終的には，次の最適化問題を考える．
+\begin{align*}
+&\max_{\pi} \mathbb{E}_{(s_t,a_t)\sim\rho_\pi}\left[\sum_{t=0}^Tr(s_t,a_t)\right]
+\\
+&\mbox{s.t. } \mathbb{E}_{(s_t,a_t)\sim\rho_\pi}[-\ln(\pi_t(a_t|s_t))]\ge {\mathcal{H}}_{desired}
+\end{align*}
+
+\paragraph{時刻$T$から始まる1ステップ部分問題．}
+時刻$T-1$まで方策$\pi_0,\cdots,\pi_{T-1}$に従うものとして，時刻$T$において用いる方策$\pi_T$を最適化する問題を考える．
+\begin{align*}
+&\max_{{\pi_T}} \mathbb{E}_{(s_T,a_T)\sim\rho_{\pi}}\left[r(s_T,a_T)\right]
+\\
+&\mbox{s.t. } \mathbb{E}_{(s_T,a_T)\sim\rho_{\pi}}[-\ln(\pi_T(a_T|s_T))]\ge {\mathcal{H}}_{desired}
+\end{align*}
+便宜上，次のように書き替える（目的関数の符号が反転している）．
+\begin{align*}
+&\min_{{\pi_T}} \left\{ -\mathbb{E}_{(s_T,a_T)\sim\rho_{\pi}}\left[r(s_T,a_T)\right] \right\}
+\\
+&\mbox{s.t. } {\mathcal{H}}_{desired}-\mathbb{E}_{(s_T,a_T)\sim\rho_{\pi}}[-\ln(\pi_T(a_T|s_T))]\le 0
+\end{align*}
+双対変数を$\alpha_T$と置くと，ラグランジュ双対関数は，
+\begin{align*}
+g(\alpha_T)
+&= \inf_{{\pi_T}} \left\{ -\mathbb{E}_{(s_T,a_T)\sim\rho_{\pi}}\left[r(s_T,a_T)\right] + \alpha_T\left(
+{\mathcal{H}}_{desired}-\mathbb{E}_{(s_T,a_T)\sim\rho_{\pi}}[-\ln(\pi_T(a_T|s_T))]
+\right) \right\}
+\\
+&= -\max_{{\pi_T}} \left\{ \mathbb{E}_{(s_T,a_T)\sim\rho_{\pi}}\left[r(s_T,a_T)\right] - \alpha_T\left(
+{\mathcal{H}}_{desired}-\mathbb{E}_{(s_T,a_T)\sim\rho_{\pi}}[-\ln(\pi_T(a_T|s_T))]
+\right) \right\}
+\\
+&= -\max_{{\pi_T}} \left\{ \mathbb{E}_{(s_T,a_T)\sim\rho_{\pi}}\left[r(s_T,a_T)-\alpha_T\ln(\pi_T(a_T|s_T))\right] - \alpha_T
+{\mathcal{H}}_{desired}\right\}
+\end{align*}
+従って，（目的関数の符号が反転している）双対問題は，
+\begin{align*}
+&\max_{\alpha_T}\left(-\max_{{\pi_T}} \left\{ \mathbb{E}_{(s_T,a_T)\sim\rho_{\pi}}\left[r(s_T,a_T)-\alpha_T\ln(\pi_T(a_T|s_T))\right] - \alpha_T
+{\mathcal{H}}_{desired}\right\}\right)
+\\
+&\mbox{s.t. } \alpha_T\ge0
+\end{align*}
+なお，目的関数が線形で，かつエントロピーが$\pi_T$について凸であるため，強双対性が成り立つ，という事に注意する．
+次のように書く．
+\begin{align*}
+\pi_{T}^\ast(\alpha_T) &= \arg\max_{\pi_T}\mathbb{E}_{(s_T,a_T)\sim\rho_{\pi}}\left[r(s_T,a_T)-\alpha_T\ln(\pi_T(a_T|s_T))\right]
+\\
+\alpha_T^\ast &= \arg\min_{\alpha_T} \left\{ \mathbb{E}_{(s_T,a_T)\sim\rho_{\pi}}\left[-\alpha_T\ln(\pi_T^\ast(a_T|s_T;\alpha_T))\right] - \alpha_T{\mathcal{H}}_{desired}\right\}
+\end{align*}
+なお，最大化によって$\pi^T(\alpha_T)$を得る式は，前小節の$J_\pi(\phi)$を最小化して方策パラメータ$\phi$を得る式と対応していることに注意する．
+従って，（目的関数の符号が反転している事に注意して）次が成り立つ．
+\begin{align*}
+&\min_{{\pi_T}} \left\{ -\mathbb{E}_{(s_T,a_T)\sim\rho_{\pi}}\left[r(s_T,a_T)\right]\right\},~~~~~\mbox{s.t. } \mathbb{E}_{(s_T,a_T)\sim\rho_{\pi}}[-\ln(\pi_T(a_T|s_T))]\ge {\mathcal{H}}_{desired}
+\\
+&=
+\max_{\alpha_T\ge0}\left(-\max_{{\pi_T}} \left\{ \mathbb{E}_{(s_T,a_T)\sim\rho_{\pi}}\left[r(s_T,a_T)-\alpha_T\ln(\pi_T(a_T|s_T))\right] - \alpha_T
+{\mathcal{H}}_{desired}\right\}\right)
+\\
+&=
+-\left(\mathbb{E}_{(s_T,a_T)\sim\rho_{\pi}}\left[r(s_T,a_T)-\alpha_T^\ast\ln(\pi_T^\ast(a_T|s_T;\alpha_T^\ast))\right] - \alpha_T^\ast
+{\mathcal{H}}_{desired}\right)
+\end{align*}
+目的関数の符号を元に戻して，次が成り立つ．
+\begin{align*}
+&\max_{{\pi_T}} \mathbb{E}_{(s_T,a_T)\sim\rho_{\pi}}\left[r(s_T,a_T)\right],~~~~~\mbox{s.t. } \mathbb{E}_{(s_T,a_T)\sim\rho_{\pi}}[-\ln(\pi_T(a_T|s_T))]\ge {\mathcal{H}}_{desired}
+\\
+&=
+\mathbb{E}_{(s_T,a_T)\sim\rho_{\pi}}\left[r(s_T,a_T)-\alpha_T^\ast\ln(\pi_T^\ast(a_T|s_T;\alpha_T^\ast))\right] - \alpha_T^\ast
+{\mathcal{H}}_{desired}
+\end{align*}
+次のように定義する．
+\begin{align*}
+Q_T^\ast(s_{T},a_{T})
+&=
+r(s_T,a_T)
+\\
+Q_{T-1}^\ast(s_{T-1},a_{T-1},\alpha_T^\ast,\pi_T^\ast)
+&=
+r(s_{T-1},a_{T-1})
++
+\mathbb{E}_{(s_{T},a_{T})\sim\rho_{\pi}}\left[Q_T^\ast(s_{T},a_{T})-\alpha_T^\ast\ln(\pi_T^\ast(a_T|s_T;\alpha_T^\ast))\right]
+\\
+&=
+r(s_{T-1},a_{T-1})
++
+\max_{\pi_T,\mbox{s.t.}...}\mathbb{E}_{(s_T,a_T)\sim\rho_{\pi}}\left[r(s_T,a_T)\right] + \alpha_T^\ast{\mathcal{H}}_{desired}
+\end{align*}
+
+
+
+\paragraph{時刻$T-1$から始まる2ステップ部分問題．}
+\begin{align*}
+&\max_{\pi_{T-1}} \mathbb{E}_{ (s_{T-1},a_{T-1}) \sim \rho_{\pi}}
+\left[
+r(s_{T-1},a_{T-1})
++
+\max_{\pi_T,~\mbox{s.t.}\cdots}
+\mathbb{E}_{(s_{T},a_{T}) \sim\rho_{\pi}}\left[ r(s_{T},a_{T})\right]
+\right]
+\\
+&\mbox{s.t. } {\mathcal{H}}_{desired}-\mathbb{E}_{(s_{T-1},a_{T-1})\sim\rho_{\pi}}[-\ln(\pi_{T-1}(a_{T-1}|s_{T-1}))]\le 0
+\end{align*}
+上で導入した記号を用いて，次のように書ける．
+\begin{align*}
+&\max_{\pi_{T-1}} \left\{ \mathbb{E}_{ (s_{T-1},a_{T-1}) \sim \rho_\pi}
+\left[
+Q_{T-1}^\ast(s_{T-1},a_{T-1},\alpha_T^\ast,\pi_T^\ast)
+\right]
+-\alpha_T^\ast{\mathcal{H}}_{desired}
+\right\}
+\\
+&\mbox{s.t. } {\mathcal{H}}_{desired}-\mathbb{E}_{(s_{T-1},a_{T-1})\sim\rho_{\pi}}[-\ln(\pi_{T-1}(a_{T-1}|s_{T-1}))]\le 0
+\end{align*}
+同様に，双対変数を$\alpha_{T-1}$とおくと，ラグランジュ双対関数は，
+\begin{align*}
+&g(\alpha_{T-1})
+\\
+&= -\max_{{\pi_{T-1}}} \left\{ \mathbb{E}_{(s_{T-1},a_{T-1})\sim\rho_\pi}\left[
+Q_{T-1}^\ast(s_{T-1},a_{T-1},\alpha_T^\ast,\pi_T^\ast)
+-
+\alpha_T^\ast{\mathcal{H}}_{desired}
+-\alpha_{T-1}\ln(\pi_{T-1}(a_{T-1}|s_{T-1}))\right] - \alpha_{T-1}{\mathcal{H}}_{desired}\right\}
+\end{align*}
+これを用いて，同様に双対問題を導くことができ，次のように書ける．
+\begin{align*}
+\pi_{T-1}^\ast(\alpha_{T-1})
+&=
+\arg\max_{\pi_{T-1}}\mathbb{E}_{(s_{T-1},a_{T-1})\sim\rho_{\pi}}
+\left[Q_{T-1}^\ast(s_{T-1},a_{T-1},\alpha_T^\ast,\pi_T^\ast)-\alpha_{T-1}\ln(\pi_{T-1}(a_{T-1}|s_{T-1}))\right]
+\\
+\alpha_{T-1}^\ast
+&=
+\arg\min_{\alpha_{T-1}} \left\{ \mathbb{E}_{(s_{T-1},a_{T-1})\sim\rho_{\pi}}
+\left[-\alpha_{T-1}\ln(\pi_{T-1}^\ast(a_{T-1}|s_{T-1};\alpha_{T-1}))\right] - \alpha_{T-1}{\mathcal{H}}_{desired}\right\}
+\end{align*}
+従って，次が成り立つ．
+\begin{align*}
+&\max_{\pi_{T-1}} \mathbb{E}_{ (s_{T-1},a_{T-1}) \sim \rho_{\pi}}
+\left[
+r(s_{T-1},a_{T-1})
++
+\max_{\pi_T,~\mbox{s.t.}\cdots}
+\mathbb{E}_{(s_{T},a_{T}) \sim\rho_{\pi}}\left[ r(s_{T},a_{T})\right]
+\right]
+,~~~~~\mbox{s.t.}\cdots
+\\
+&= \mathbb{E}_{(s_{T-1},a_{T-1})\sim\rho_\pi}\left[
+Q_{T-1}^\ast(s_{T-1},a_{T-1},\alpha_T^\ast,\pi_T^\ast)
+-\alpha_{T-1}^\ast\ln(\pi_{T-1}^\ast(a_{T-1}|s_{T-1};\alpha_{T-1}))\right] - (\alpha_{T-1}^\ast+\alpha_{T}^\ast){\mathcal{H}}_{desired}
+\end{align*}
+
+\paragraph{時刻$t$から始まる部分問題．}
+\begin{align*}
+&\max_{\pi_{t}} \mathbb{E}_{ (s_{t},a_{t}) \sim \rho_{\pi}}
+\left[
+r(s_{t},a_{t})
++
+\max_{\{\pi_{t'}\}_{t'=1}^T,\mbox{s.t.}\cdots}\mathbb{E}_{(s_{t'},a_{t'})\sim\rho_{\pi}}
+\left[\sum_{t'=t+1}^Tr(s_{t'},a_{t'})\right]
+\right]
+\\
+&\mbox{s.t. } {\mathcal{H}}_{desired}-\mathbb{E}_{(s_{t},a_{t})\sim\rho_{\pi}}[-\ln(\pi_{t}(a_{t}|s_{t}))]\le 0
+\end{align*}
+次のように定義する．
+\begin{align*}
+Q_T^\ast(s_{T},a_{T})
+&=
+r(s_T,a_T)
+\\
+Q_{t}^\ast(s_{t},a_{t},\alpha_{t+1}^\ast,\pi_{t+1}^\ast)
+&=
+r(s_{t},a_{t})
++
+\mathbb{E}_{(s_{t+1},a_{t+1})\sim\rho_{\pi}}\left[Q_{t+1}^\ast(s_{t+1},a_{t+1})-\alpha_{t+1}^\ast\ln(\pi_{t+1}^\ast(a_{t+1}|s_{t+1};\alpha_{t+1}^\ast))\right]
+\end{align*}
+同様に双対問題を導くことができ，次のように書ける．
+\begin{align*}
+\pi_{t}^\ast(\alpha_{t})
+&=
+\arg\max_{\pi_{t}}
+\mathbb{E}_{(s_{t},a_{t})\sim\rho_{\pi}}
+\left[ Q_{t}^\ast(s_{t},a_{t},\alpha_{t+1}^\ast,\pi_{t+1}^\ast)-\alpha_t\ln(\pi_{t}(a_{t}|s_{t}))\right]
+\\
+\alpha_{t}^\ast
+&=
+\arg\min_{\alpha_{t}} \left\{ \mathbb{E}_{(s_{t},a_{t})\sim\rho_{\pi}}
+\left[-\alpha_{t}\ln(\pi_{t}^\ast(a_{t}|s_{t};\alpha_{t}))\right] - \alpha_{t}{\mathcal{H}}_{desired}\right\}
+\end{align*}
+従って，次が成り立つ．
+\begin{align*}
+&\max_{\pi_{t}} \mathbb{E}_{ (s_{t},a_{t}) \sim \rho_{\pi}}
+\left[
+r(s_{t},a_{t})
++
+\max_{\{\pi_{t'}\}_{t'=1}^T,\mbox{s.t.}\cdots}\mathbb{E}_{(s_{t'},a_{t'})\sim\rho_{\pi}}
+\left[\sum_{t'=t+1}^Tr(s_{t'},a_{t'})\right]
+\right]
+,~~~~~\mbox{s.t.}\cdots
+\\
+&= \mathbb{E}_{(s_{t},a_{t})\sim\rho_\pi}\left[
+Q_{t}^\ast(s_{t},a_{t},\alpha_{t+1}^\ast,\pi_{t+1}^\ast)
+-\alpha_{t}^\ast\ln(\pi_{t}^\ast(a_{t}|s_{t};\alpha_{t}))\right] - \sum_{t'=t}^T\alpha_{t'}{\mathcal{H}}_{desired}
+\end{align*}
+
+\subsection{温度決定の自動化の実装}
+各ステップで$\alpha$を最適化するのは難しいので，時間方向に平均化して次の評価指標を最適化することにする．
+\begin{align*}
+J(\alpha) =
+\mathbb{E}_{(s_{t},a_{t})\sim\rho_{\pi}}
+\left[-\alpha\ln(\pi_{t}^\ast(a_{t}|s_{t};\alpha))\right] - \alpha{\mathcal{H}}_{desired}
+\end{align*}
+
+\subsection{自分のための補足：双対問題の教科書的な記述}
+主問題を次のように定義する．
+\begin{align*}
+&\min_{\vx} f(\vx)
+\\
+&\mbox{s.t. } f_i(\vx)\le0
+\end{align*}
+ラグランジュ関数は次式である．
+\begin{align*}
+L(\vx,\vlambda) = f(\vx) + \sum_{i}\lambda_if_i(\vx)
+\end{align*}
+ラグランジュ双対関数は次式である．
+\begin{align*}
+g(\lambda) = \inf_{\vx}L(\vx,\vlambda)
+\end{align*}
+双対問題は，以下である．
+\begin{align*}
+&\max_{\vlambda} g(\vlambda)
+\\
+&\mbox{s.t. } \lambda_i\ge0
+\end{align*}
